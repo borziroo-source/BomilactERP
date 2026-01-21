@@ -1,0 +1,8 @@
+{
+  "name": "Bomilact ERP Core v2",
+  "description": "Integrated ERP system for Bomilact dairy production, featuring role-based dashboards, logistics tracking, and AI-driven financial analysis.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
+}
