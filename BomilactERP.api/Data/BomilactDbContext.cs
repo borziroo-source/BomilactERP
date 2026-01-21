@@ -20,6 +20,7 @@ public class BomilactDbContext : DbContext
     public DbSet<Invoice> Invoices { get; set; }
     public DbSet<ProductionPlan> ProductionPlans { get; set; }
     public DbSet<ProductionItem> ProductionItems { get; set; }
+    public DbSet<Contract> Contracts { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -37,6 +38,7 @@ public class BomilactDbContext : DbContext
         modelBuilder.Entity<Invoice>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<ProductionPlan>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<ProductionItem>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<Contract>().HasQueryFilter(e => !e.IsDeleted);
 
         // User configuration
         modelBuilder.Entity<User>(entity =>
@@ -153,6 +155,21 @@ public class BomilactDbContext : DbContext
             
             entity.HasOne(e => e.Partner)
                 .WithMany(p => p.Invoices)
+                .HasForeignKey(e => e.PartnerId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Contract configuration
+        modelBuilder.Entity<Contract>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.ContractNumber).HasMaxLength(50).IsRequired();
+            entity.HasIndex(e => e.ContractNumber).IsUnique();
+            entity.Property(e => e.MilkQuotaLiters).HasPrecision(18, 3);
+            entity.Property(e => e.BasePricePerLiter).HasPrecision(18, 4);
+
+            entity.HasOne(e => e.Partner)
+                .WithMany(p => p.Contracts)
                 .HasForeignKey(e => e.PartnerId)
                 .OnDelete(DeleteBehavior.Restrict);
         });

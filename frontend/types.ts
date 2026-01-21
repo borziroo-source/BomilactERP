@@ -105,15 +105,16 @@ export interface Supplier {
 
 // ÚJ: Szerződés entitás (Külön tárolva a beszállítótól)
 export interface Contract {
-  id: string;
-  supplierId: string;
-  supplierName: string;
+  id: number;
+  partnerId: number;
+  partnerName: string;
   contractNumber: string;
   startDate: string;
   endDate: string;
   milkQuotaLiters: number;
   basePricePerLiter: number;
   status: 'ACTIVE' | 'EXPIRED' | 'PENDING';
+  notes?: string;
 }
 
 // ÚJ: Havi összesítő (Borderou) típus

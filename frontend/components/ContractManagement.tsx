@@ -1,93 +1,107 @@
 
-import React, { useState, useMemo } from 'react';
-import { 
-  Search, 
-  Plus, 
-  Edit2, 
-  Trash2, 
-  X, 
-  Save, 
-  FileSignature, 
-  TrendingUp, 
-  AlertTriangle, 
-  Calendar, 
-  DollarSign, 
-  Droplet,
-  MoreVertical,
-  CheckCircle,
-  BarChart3,
-  RefreshCw
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+   Search,
+   Plus,
+   Edit2,
+   X,
+   Save,
+   FileSignature,
+   AlertTriangle,
+   DollarSign,
+   Droplet,
+   BarChart3,
+   RefreshCw
 } from 'lucide-react';
 import { Contract } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { createContract, fetchContracts } from '../services/contracts';
+import { fetchPartners, PartnerRef } from '../services/partners';
 
-const MOCK_CONTRACTS: Contract[] = [
-  { 
-    id: 'cnt-1', 
-    supplierId: 'sup1',
-    supplierName: 'Kovács István E.V. (Gazda)', 
-    contractNumber: 'CTR-2023/001',
-    startDate: '2023-01-01',
-    endDate: '2023-12-31',
-    milkQuotaLiters: 1500,
-    basePricePerLiter: 2.10,
-    status: 'ACTIVE'
-  },
-  { 
-    id: 'cnt-2', 
-    supplierId: 'sup2',
-    supplierName: 'Agro Lacto Coop (Szövetkezet)', 
-    contractNumber: 'CTR-2022/088',
-    startDate: '2022-01-01',
-    endDate: '2024-12-31',
-    milkQuotaLiters: 25000,
-    basePricePerLiter: 2.35,
-    status: 'ACTIVE'
-  },
-  { 
-    id: 'cnt-3', 
-    supplierId: 'sup3',
-    supplierName: 'Gyergyó Tejgyűjtő Kft.', 
-    contractNumber: 'CTR-2023/044',
-    startDate: '2023-03-01',
-    endDate: '2023-10-31', 
-    milkQuotaLiters: 12000,
-    basePricePerLiter: 2.15,
-    status: 'ACTIVE'
-  }
-];
+const defaultContract = (): Partial<Contract> => ({
+   partnerId: 0,
+   partnerName: '',
+   contractNumber: '',
+   startDate: new Date().toISOString().substring(0, 10),
+   endDate: new Date().toISOString().substring(0, 10),
+   milkQuotaLiters: 0,
+   basePricePerLiter: 0,
+   status: 'PENDING',
+   notes: ''
+});
 
 const ContractManagement: React.FC = () => {
-  const { t } = useLanguage();
-  const [contracts, setContracts] = useState<Contract[]>(MOCK_CONTRACTS);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [currentContract, setCurrentContract] = useState<Partial<Contract>>({});
+   const { t } = useLanguage();
+   const [contracts, setContracts] = useState<Contract[]>([]);
+   const [partners, setPartners] = useState<PartnerRef[]>([]);
+   const [searchTerm, setSearchTerm] = useState('');
+   const [isModalOpen, setIsModalOpen] = useState(false);
+   const [currentContract, setCurrentContract] = useState<Partial<Contract>>(defaultContract());
+   const [loading, setLoading] = useState(true);
+   const [error, setError] = useState<string | null>(null);
+
+   useEffect(() => {
+      const load = async () => {
+         try {
+            setLoading(true);
+            const [contractData, partnerData] = await Promise.all([
+               fetchContracts(),
+               fetchPartners()
+            ]);
+            setContracts(contractData);
+            setPartners(partnerData);
+         } catch (err) {
+            console.error(err);
+            setError('Nem sikerült betölteni a szerződéseket.');
+         } finally {
+            setLoading(false);
+         }
+      };
+
+      load();
+   }, []);
 
   const stats = useMemo(() => {
-    const totalVolume = contracts.reduce((acc, c) => acc + c.milkQuotaLiters, 0);
-    const avgPrice = contracts.length > 0 ? (contracts.reduce((acc, c) => acc + c.basePricePerLiter, 0) / contracts.length).toFixed(2) : '0';
-    const expiring = contracts.filter(c => {
-      const days = Math.ceil((new Date(c.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-      return days < 30;
-    }).length;
-    return { totalVolume, avgPrice, expiring };
+      const totalVolume = contracts.reduce((acc, c) => acc + c.milkQuotaLiters, 0);
+      const avgPrice = contracts.length > 0 ? (contracts.reduce((acc, c) => acc + c.basePricePerLiter, 0) / contracts.length).toFixed(2) : '0';
+      const expiring = contracts.filter(c => {
+         const days = Math.ceil((new Date(c.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+         return days < 30;
+      }).length;
+      return { totalVolume, avgPrice, expiring };
   }, [contracts]);
 
   const filteredContracts = contracts.filter(c => 
-    c.supplierName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    c.contractNumber.toLowerCase().includes(searchTerm.toLowerCase())
+      c.partnerName.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      c.contractNumber.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleEdit = (contract: Contract) => {
-    setCurrentContract({ ...contract });
-    setIsModalOpen(true);
-  };
+   const openNewModal = () => {
+      setCurrentContract(defaultContract());
+      setError(null);
+      setIsModalOpen(true);
+   };
 
-  const handleSave = (e: React.FormEvent) => {
+   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    setContracts(contracts.map(c => c.id === currentContract.id ? currentContract as Contract : c));
-    setIsModalOpen(false);
+      if (!currentContract.partnerId) {
+         setError('Válassz partnert a szerződéshez.');
+         return;
+      }
+      if (!currentContract.contractNumber) {
+         setError('Adj meg szerződésszámot.');
+         return;
+      }
+      try {
+         setError(null);
+         const created = await createContract(currentContract);
+         const partnerName = created.partnerName || partners.find(p => p.id === created.partnerId)?.name || '';
+         setContracts(prev => [...prev, { ...created, partnerName }]);
+         setIsModalOpen(false);
+      } catch (err) {
+         console.error(err);
+          setError('Nem sikerült menteni a szerződést.');
+      }
   };
 
   const getContractStatusColor = (endDate: string) => {
@@ -99,6 +113,14 @@ const ContractManagement: React.FC = () => {
 
   return (
     <div className="animate-fade-in space-y-6">
+         {loading && (
+            <div className="p-6 text-sm text-slate-600">Betöltés...</div>
+         )}
+         {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+               {error}
+            </div>
+         )}
       
       {/* 1. Header & Stats */}
       <div className="flex flex-col lg:flex-row gap-6">
@@ -153,7 +175,16 @@ const ContractManagement: React.FC = () => {
                  className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-100 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                />
             </div>
-            <button className="p-2 text-slate-400 hover:text-slate-600 transition"><BarChart3 size={20} /></button>
+            <div className="flex items-center gap-2">
+              <button className="p-2 text-slate-400 hover:text-slate-600 transition"><BarChart3 size={20} /></button>
+              <button 
+                onClick={openNewModal}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center transition"
+              >
+                 <Plus size={18} className="mr-2" />
+                 {t('cnt.new_contract') ?? 'Új szerződés'}
+              </button>
+            </div>
          </div>
 
          <div className="overflow-x-auto">
@@ -178,7 +209,7 @@ const ContractManagement: React.FC = () => {
                              </div>
                              <div>
                                 <div className="text-slate-900 font-bold">{c.contractNumber}</div>
-                                <div className="text-[11px] text-slate-500">{c.supplierName}</div>
+                                <div className="text-[11px] text-slate-500">{c.partnerName}</div>
                              </div>
                           </div>
                        </td>
@@ -196,8 +227,9 @@ const ContractManagement: React.FC = () => {
                        </td>
                        <td className="px-6 py-4 text-right">
                           <button 
-                            onClick={() => handleEdit(c)}
-                            className="p-2 text-slate-400 hover:text-blue-600 transition"
+                            className="p-2 text-slate-300 cursor-not-allowed"
+                            title="Szerkesztés hamarosan"
+                            disabled
                           >
                              <Edit2 size={18} />
                           </button>
@@ -216,15 +248,28 @@ const ContractManagement: React.FC = () => {
               <div className="bg-slate-800 p-5 text-white flex justify-between items-center">
                  <h3 className="font-bold flex items-center">
                     <FileSignature className="mr-3 text-blue-400" />
-                    {t('cnt.edit_contract')}
+                    {t('cnt.new_contract') ?? 'Új szerződés felvitele'}
                  </h3>
                  <button onClick={() => setIsModalOpen(false)} className="hover:bg-slate-700 p-1.5 rounded-lg transition"><X size={20}/></button>
               </div>
 
               <form onSubmit={handleSave} className="p-6 space-y-6">
                  <div>
-                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Beszállító</label>
-                    <div className="font-bold text-slate-800 text-lg">{currentContract.supplierName}</div>
+                    <label className="block text-xs font-bold text-slate-400 uppercase mb-1">Partner</label>
+                    <select
+                      value={currentContract.partnerId ?? 0}
+                      onChange={e => {
+                        const partnerId = Number(e.target.value);
+                        const partnerName = partners.find(p => p.id === partnerId)?.name ?? '';
+                        setCurrentContract({ ...currentContract, partnerId, partnerName });
+                      }}
+                      className="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    >
+                      <option value={0}>Válassz partnert...</option>
+                      {partners.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
                  </div>
 
                  <div className="grid grid-cols-2 gap-4">
@@ -242,8 +287,8 @@ const ContractManagement: React.FC = () => {
                        <input 
                          type="number" 
                          step="0.01"
-                         value={currentContract.basePricePerLiter}
-                         onChange={e => setCurrentContract({...currentContract, basePricePerLiter: parseFloat(e.target.value)})}
+                                     value={currentContract.basePricePerLiter}
+                                     onChange={e => setCurrentContract({...currentContract, basePricePerLiter: Number(e.target.value) || 0})}
                          className="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold text-blue-700 focus:ring-2 focus:ring-blue-500 outline-none"
                        />
                     </div>
@@ -253,8 +298,8 @@ const ContractManagement: React.FC = () => {
                     <label className="block text-xs font-bold text-slate-500 uppercase mb-2">{t('cnt.quota')} (L/hó)</label>
                     <input 
                       type="number" 
-                      value={currentContract.milkQuotaLiters}
-                      onChange={e => setCurrentContract({...currentContract, milkQuotaLiters: parseInt(e.target.value)})}
+                                 value={currentContract.milkQuotaLiters}
+                                 onChange={e => setCurrentContract({...currentContract, milkQuotaLiters: Number(e.target.value) || 0})}
                       className="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
                     />
                  </div>
@@ -264,7 +309,7 @@ const ContractManagement: React.FC = () => {
                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2">{t('cnt.start_date')}</label>
                        <input 
                          type="date" 
-                         value={currentContract.startDate}
+                                     value={currentContract.startDate}
                          onChange={e => setCurrentContract({...currentContract, startDate: e.target.value})}
                          className="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                        />
@@ -278,6 +323,16 @@ const ContractManagement: React.FC = () => {
                          className="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                        />
                     </div>
+                 </div>
+
+                 <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Megjegyzés</label>
+                    <textarea
+                      value={currentContract.notes}
+                      onChange={e => setCurrentContract({ ...currentContract, notes: e.target.value })}
+                      className="w-full border border-slate-200 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                      rows={3}
+                    />
                  </div>
 
                  <div className="flex gap-4 pt-4 border-t">

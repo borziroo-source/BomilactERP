@@ -149,6 +149,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'cnt.end_date': 'Lejárat',
     'cnt.base_price': 'Alapár',
     'cnt.quota': 'Havi Kvóta',
+    'cnt.new_contract': 'Új szerződés',
     'cnt.edit_contract': 'Szerződés Módosítása',
 
     // Finance Labels
@@ -362,6 +363,7 @@ export const translations: Record<Language, Record<string, string>> = {
     'cnt.end_date': 'Expirare',
     'cnt.base_price': 'Preț bază',
     'cnt.quota': 'Cotă lunară',
+    'cnt.new_contract': 'Contract nou',
     'cnt.edit_contract': 'Editare Contract',
 
     'saga.sync_status': 'Stare Sincronizare',

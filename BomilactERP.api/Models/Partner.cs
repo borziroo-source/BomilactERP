@@ -21,6 +21,7 @@ public class Partner : ISoftDeletable
     // Navigation properties
     public ICollection<Order> Orders { get; set; } = new List<Order>();
     public ICollection<Invoice> Invoices { get; set; } = new List<Invoice>();
+    public ICollection<Contract> Contracts { get; set; } = new List<Contract>();
 }
 
 public enum PartnerType
