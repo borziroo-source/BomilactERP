@@ -1,6 +1,6 @@
 namespace BomilactERP.api.Models;
 
-public class Partner
+public class Partner : ISoftDeletable
 {
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
@@ -14,6 +14,7 @@ public class Partner
     public string? Phone { get; set; }
     public PartnerType Type { get; set; }
     public bool IsActive { get; set; } = true;
+    public bool IsDeleted { get; set; } = false;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 

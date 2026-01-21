@@ -1,6 +1,6 @@
 namespace BomilactERP.api.Models;
 
-public class OrderItem
+public class OrderItem : ISoftDeletable
 {
     public int Id { get; set; }
     public int OrderId { get; set; }
@@ -9,6 +9,7 @@ public class OrderItem
     public decimal UnitPrice { get; set; }
     public decimal TotalPrice { get; set; }
     public string? Notes { get; set; }
+    public bool IsDeleted { get; set; } = false;
 
     // Navigation properties
     public Order Order { get; set; } = null!;

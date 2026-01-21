@@ -1,6 +1,6 @@
 namespace BomilactERP.api.Models;
 
-public class Invoice
+public class Invoice : ISoftDeletable
 {
     public int Id { get; set; }
     public string InvoiceNumber { get; set; } = string.Empty;
@@ -11,6 +11,7 @@ public class Invoice
     public decimal? PaidAmount { get; set; }
     public InvoiceStatus Status { get; set; } = InvoiceStatus.Pending;
     public string? Notes { get; set; }
+    public bool IsDeleted { get; set; } = false;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 

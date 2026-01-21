@@ -25,6 +25,19 @@ public class BomilactDbContext : DbContext
     {
         base.OnModelCreating(modelBuilder);
 
+        // Global query filter for soft delete
+        modelBuilder.Entity<User>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<Product>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<Partner>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<Order>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<OrderItem>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<InventoryItem>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<Recipe>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<RecipeItem>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<Invoice>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<ProductionPlan>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<ProductionItem>().HasQueryFilter(e => !e.IsDeleted);
+
         // User configuration
         modelBuilder.Entity<User>(entity =>
         {
@@ -170,5 +183,20 @@ public class BomilactDbContext : DbContext
                 .HasForeignKey(e => e.ProductId)
                 .OnDelete(DeleteBehavior.Restrict);
         });
+    }
+
+    public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
+    {
+        // Automatically set IsDeleted to true instead of deleting
+        foreach (var entry in ChangeTracker.Entries())
+        {
+            if (entry.State == EntityState.Deleted && entry.Entity is ISoftDeletable softDeletable)
+            {
+                entry.State = EntityState.Modified;
+                softDeletable.IsDeleted = true;
+            }
+        }
+
+        return base.SaveChangesAsync(cancellationToken);
     }
 }

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using BomilactERP.api.Data;
+using BomilactERP.api.Repositories;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -8,6 +9,9 @@ var builder = WebApplication.CreateBuilder(args);
 // Add DbContext
 builder.Services.AddDbContext<BomilactDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// Add generic repository
+builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle

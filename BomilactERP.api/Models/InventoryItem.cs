@@ -1,6 +1,6 @@
 namespace BomilactERP.api.Models;
 
-public class InventoryItem
+public class InventoryItem : ISoftDeletable
 {
     public int Id { get; set; }
     public int ProductId { get; set; }
@@ -9,6 +9,7 @@ public class InventoryItem
     public string? Location { get; set; }
     public string? LotNumber { get; set; }
     public DateTime? ExpiryDate { get; set; }
+    public bool IsDeleted { get; set; } = false;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 

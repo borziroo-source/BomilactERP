@@ -1,6 +1,6 @@
 namespace BomilactERP.api.Models;
 
-public class Order
+public class Order : ISoftDeletable
 {
     public int Id { get; set; }
     public string OrderNumber { get; set; } = string.Empty;
@@ -10,6 +10,7 @@ public class Order
     public OrderStatus Status { get; set; } = OrderStatus.Pending;
     public decimal TotalAmount { get; set; }
     public string? Notes { get; set; }
+    public bool IsDeleted { get; set; } = false;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 
