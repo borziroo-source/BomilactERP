@@ -19,7 +19,7 @@ namespace BomilactERP.api.Controllers
         }
 
         [HttpGet(Name = "GetWeatherForecast")]
-        public IEnumerable<WeatherForecast> Get()
+        public ActionResult<IEnumerable<WeatherForecast>> Get()
         {
             try
             {
@@ -32,12 +32,12 @@ namespace BomilactERP.api.Controllers
                 })
                 .ToArray();
                 _logger.LogInformation("Successfully fetched {Count} weather forecasts", result.Length);
-                return result;
+                return Ok(result);
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "An error occurred while fetching weather forecast");
-                throw;
+                return StatusCode(500, new { message = "An error occurred while processing your request" });
             }
         }
     }
