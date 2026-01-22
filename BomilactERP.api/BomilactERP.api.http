@@ -1,0 +1,6 @@
+@BomilactERP.api_HostAddress = http://localhost:5271
+
+GET {{BomilactERP.api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

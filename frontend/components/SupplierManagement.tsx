@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Search, 
   Plus, 
@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { Supplier, SupplierType, SupplierGroup, LegalType } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import * as supplierService from '../services/suppliers';
 
 // Mock Groups
 const INITIAL_GROUPS: SupplierGroup[] = [
@@ -98,13 +99,59 @@ const INITIAL_SUPPLIERS: Supplier[] = [
 
 const SupplierManagement: React.FC = () => {
   const { t } = useLanguage();
-  const [suppliers, setSuppliers] = useState<Supplier[]>(INITIAL_SUPPLIERS);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [groups] = useState<SupplierGroup[]>(INITIAL_GROUPS);
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<SupplierType | 'ALL'>('ALL');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentSupplier, setCurrentSupplier] = useState<Partial<Supplier>>({});
   const [isEditing, setIsEditing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Adatok betöltése az API-ból
+  useEffect(() => {
+    loadSuppliers();
+  }, []);
+
+  const loadSuppliers = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const data = await supplierService.fetchSuppliers();
+      
+      // API adatok konvertálása Supplier típusra
+      const mappedSuppliers: Supplier[] = data.map(apiSupplier => ({
+        id: apiSupplier.id.toString(),
+        name: apiSupplier.name,
+        cui: apiSupplier.taxNumber || '',
+        legalType: 'COMPANY' as LegalType,
+        exploitationCode: '',
+        apiaCode: '',
+        hasSubsidy8: false,
+        bankName: '',
+        bankBranch: '',
+        iban: '',
+        type: 'FARMER' as SupplierType,
+        groupId: '',
+        address: `${apiSupplier.address || ''} ${apiSupplier.city || ''}`.trim(),
+        phone: apiSupplier.phone || '',
+        email: apiSupplier.email || '',
+        status: apiSupplier.isActive ? 'ACTIVE' : 'INACTIVE',
+        invoiceSeries: '',
+        nextInvoiceNumber: 1
+      }));
+      
+      setSuppliers(mappedSuppliers);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Hiba történt az adatok betöltésekor');
+      console.error('Error loading suppliers:', err);
+      // Visszaesés mock adatokra hiba esetén
+      setSuppliers(INITIAL_SUPPLIERS);
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
   const collectionPoints = useMemo(() => suppliers.filter(s => s.type === 'COLLECTION_POINT'), [suppliers]);
 
@@ -120,9 +167,15 @@ const SupplierManagement: React.FC = () => {
     });
   }, [suppliers, searchTerm, typeFilter, groups]);
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (window.confirm(t('sup.confirm_delete'))) {
-      setSuppliers(suppliers.filter(s => s.id !== id));
+      try {
+        await supplierService.deleteSupplier(parseInt(id));
+        setSuppliers(suppliers.filter(s => s.id !== id));
+      } catch (err) {
+        alert('Hiba történt a törlés során: ' + (err instanceof Error ? err.message : 'Ismeretlen hiba'));
+        console.error('Error deleting supplier:', err);
+      }
     }
   };
 
@@ -142,20 +195,57 @@ const SupplierManagement: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentSupplier.name || !currentSupplier.cui) return;
 
-    if (isEditing && currentSupplier.id) {
-      setSuppliers(suppliers.map(s => s.id === currentSupplier.id ? currentSupplier as Supplier : s));
-    } else {
-      const newSupplier: Supplier = {
-        ...currentSupplier as Supplier,
-        id: `SUP-${Math.floor(Math.random() * 10000)}`,
+    try {
+      const apiData = {
+        name: currentSupplier.name,
+        taxNumber: currentSupplier.cui,
+        address: currentSupplier.address,
+        city: '',
+        postalCode: '',
+        country: 'RO',
+        contactPerson: '',
+        email: currentSupplier.email || null,
+        phone: currentSupplier.phone || null,
+        type: 1, // Supplier
+        isActive: currentSupplier.status === 'ACTIVE'
       };
-      setSuppliers([...suppliers, newSupplier]);
+
+      if (isEditing && currentSupplier.id) {
+        await supplierService.updateSupplier(parseInt(currentSupplier.id), apiData);
+        setSuppliers(suppliers.map(s => s.id === currentSupplier.id ? currentSupplier as Supplier : s));
+      } else {
+        const created = await supplierService.createSupplier(apiData);
+        const newSupplier: Supplier = {
+          id: created.id.toString(),
+          name: created.name,
+          cui: created.taxNumber || '',
+          legalType: currentSupplier.legalType || 'INDIVIDUAL',
+          exploitationCode: currentSupplier.exploitationCode || '',
+          apiaCode: currentSupplier.apiaCode || '',
+          hasSubsidy8: currentSupplier.hasSubsidy8 || false,
+          bankName: currentSupplier.bankName || '',
+          bankBranch: currentSupplier.bankBranch || '',
+          iban: currentSupplier.iban || '',
+          type: currentSupplier.type || 'FARMER',
+          groupId: currentSupplier.groupId,
+          address: created.address || '',
+          phone: created.phone || '',
+          email: created.email || '',
+          status: created.isActive ? 'ACTIVE' : 'INACTIVE',
+          invoiceSeries: currentSupplier.invoiceSeries,
+          nextInvoiceNumber: currentSupplier.nextInvoiceNumber
+        };
+        setSuppliers([...suppliers, newSupplier]);
+      }
+      setIsModalOpen(false);
+    } catch (err) {
+      alert('Hiba történt a mentés során: ' + (err instanceof Error ? err.message : 'Ismeretlen hiba'));
+      console.error('Error saving supplier:', err);
     }
-    setIsModalOpen(false);
   };
 
   const getTypeBadge = (type: SupplierType) => {
@@ -169,7 +259,24 @@ const SupplierManagement: React.FC = () => {
   return (
     <div className="animate-fade-in space-y-6">
       
+      {/* Hiba üzenet */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl">
+          <strong>Hiba:</strong> {error}
+        </div>
+      )}
+
+      {/* Betöltés állapot */}
+      {isLoading && (
+        <div className="bg-white p-12 rounded-2xl shadow-sm border border-slate-100 text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-slate-500">Beszállítók betöltése...</p>
+        </div>
+      )}
+      
       {/* Header & Stats */}
+      {!isLoading && (
+      <>
       <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-center gap-6">
         <div>
           <h2 className="text-xl font-bold text-slate-800">{t('sup.title')}</h2>
@@ -421,6 +528,8 @@ const SupplierManagement: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );
