@@ -73,7 +73,7 @@ public class ProductsController : ControllerBase
                 return BadRequest(new { message = "Product name is required" });
             }
 
-            product.Id = _products.Max(p => p.Id) + 1;
+            product.Id = _products.Any() ? _products.Max(p => p.Id) + 1 : 1;
             _products.Add(product);
             
             _logger.LogInformation("Successfully created product with ID {ProductId}", product.Id);
@@ -92,6 +92,12 @@ public class ProductsController : ControllerBase
         try
         {
             _logger.LogInformation("Updating product with ID {ProductId}", id);
+            
+            if (string.IsNullOrWhiteSpace(product.Name))
+            {
+                _logger.LogWarning("Product update failed: Name is required");
+                return BadRequest(new { message = "Product name is required" });
+            }
             
             var existingProduct = _products.FirstOrDefault(p => p.Id == id);
             if (existingProduct == null)

@@ -98,6 +98,18 @@ public class OrdersController : ControllerBase
         {
             _logger.LogInformation("Updating order with ID {OrderId}", id);
             
+            if (string.IsNullOrWhiteSpace(order.ProductName))
+            {
+                _logger.LogWarning("Order update failed: Product name is required");
+                return BadRequest(new { message = "Product name is required" });
+            }
+
+            if (order.Quantity <= 0)
+            {
+                _logger.LogWarning("Order update failed: Quantity must be greater than zero");
+                return BadRequest(new { message = "Quantity must be greater than zero" });
+            }
+            
             var existingOrder = _orders.FirstOrDefault(o => o.Id == id);
             if (existingOrder == null)
             {
