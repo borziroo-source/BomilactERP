@@ -1,0 +1,2 @@
+2026-01-22 06:35:53.535 +00:00 [INF] [runnervmmtnos] [1] Starting BomilactERP application
+2026-01-22 06:35:55.018 +00:00 [INF] [runnervmmtnos] [1] BomilactERP application started successfully
