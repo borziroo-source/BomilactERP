@@ -29,18 +29,10 @@ Ha a 'language' paraméter 'ro', akkor románul válaszolj. Ha 'hu', akkor magya
 `;
 
 export const askBomilactCore = async (prompt: string, language: string = 'hu') => {
-  // Fix: Obtained API key exclusively from process.env.API_KEY.
-  if (!process.env.API_KEY) {
-    console.warn("API Key is missing for Gemini Service");
-    const msg = language === 'ro' 
-      ? "Sistemul rulează în modul demo (cheia API lipsește)."
-      : "A rendszer jelenleg demo módban fut (API kulcs hiányzik).";
-    return { text: msg, isMock: true };
-  }
-
   try {
     const aiInstance = getAI();
     if (!aiInstance) {
+      console.warn("API Key is missing for Gemini Service");
       const msg = language === 'ro' 
         ? "Sistemul rulează în modul demo (cheia API lipsește)."
         : "A rendszer jelenleg demo módban fut (API kulcs hiányzik).";
