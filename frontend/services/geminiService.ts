@@ -1,7 +1,14 @@
 import { GoogleGenAI } from "@google/genai";
 
-// Fix: Initialize the Gemini API client directly using the named apiKey parameter from process.env.API_KEY.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Fix: Lazy initialization to avoid errors when API key is missing
+let ai: GoogleGenAI | null = null;
+
+const getAI = () => {
+  if (!ai && process.env.API_KEY) {
+    ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  }
+  return ai;
+};
 
 const BOMILACT_SYSTEM_PROMPT = `
 TE VAGY A "BOMILACT CORE V2", A BOMILACT TEJÜZEM INTEGRÁLT VÁLLALATIRÁNYÍTÁSI AGYA.
@@ -32,9 +39,17 @@ export const askBomilactCore = async (prompt: string, language: string = 'hu') =
   }
 
   try {
+    const aiInstance = getAI();
+    if (!aiInstance) {
+      const msg = language === 'ro' 
+        ? "Sistemul rulează în modul demo (cheia API lipsește)."
+        : "A rendszer jelenleg demo módban fut (API kulcs hiányzik).";
+      return { text: msg, isMock: true };
+    }
+    
     const finalPrompt = `[Language: ${language}]\n${prompt}`;
     // Fix: Use the correct model name 'gemini-3-flash-preview' for text tasks.
-    const response = await ai.models.generateContent({
+    const response = await aiInstance.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: finalPrompt,
       config: {
