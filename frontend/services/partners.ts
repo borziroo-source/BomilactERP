@@ -1,3 +1,5 @@
+import axios from 'axios';
+
 const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 const BASE_URL = `${API_BASE}/api/Partners`;
 
@@ -22,25 +24,23 @@ export type PartnerRef = {
   isActive: boolean;
 };
 
-const ensureOk = async (response: Response) => {
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `HTTP ${response.status}`);
-  }
-};
-
-const parseJson = async <T>(response: Response): Promise<T> => {
-  const contentType = response.headers.get('content-type') || '';
-  if (!contentType.includes('application/json')) {
-    const text = await response.text();
-    throw new Error(`Nem JSON válasz érkezett az API-tól. Ellenőrizd a VITE_API_URL beállítást. Válasz (részlet): ${text.substring(0, 200)}`);
-  }
-  return (await response.json()) as T;
-};
+// Create axios instance with default config
+const apiClient = axios.create({
+  baseURL: BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  timeout: 10000, // 10 seconds timeout
+});
 
 export const fetchPartners = async (): Promise<PartnerRef[]> => {
-  const res = await fetch(BASE_URL, { cache: 'no-store' });
-  await ensureOk(res);
-  const data = await parseJson<ApiPartnerDto[]>(res);
-  return data.map((p) => ({ id: p.id, name: p.name, isActive: p.isActive }));
+  try {
+    const response = await apiClient.get<ApiPartnerDto[]>('');
+    return response.data.map((p) => ({ id: p.id, name: p.name, isActive: p.isActive }));
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      throw new Error(error.response?.data?.message || error.message || 'Hiba történt a partnerek lekérdezése közben');
+    }
+    throw error;
+  }
 };
