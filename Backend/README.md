@@ -59,10 +59,17 @@ dotnet run
 ```
 
 The API will be available at:
-- HTTP: http://localhost:5000
-- Swagger UI: http://localhost:5000/swagger
+- HTTP: http://localhost:7102
+- Swagger UI: http://localhost:7102/swagger
 
 ## API Endpoints
+
+### Partners
+- `GET /api/partners` - Get all partners
+- `GET /api/partners/{id}` - Get partner by ID
+- `POST /api/partners` - Create new partner
+- `PUT /api/partners/{id}` - Update partner
+- `DELETE /api/partners/{id}` - Delete partner
 
 ### Products
 - `GET /api/products` - Get all products

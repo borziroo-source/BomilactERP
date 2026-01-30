@@ -47,9 +47,9 @@ try
 
     app.UseSerilogRequestLogging();
 
-    app.UseHttpsRedirection();
-
     app.UseCors();
+
+    app.UseHttpsRedirection();
 
     app.UseAuthorization();
 
