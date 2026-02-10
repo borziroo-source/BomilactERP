@@ -38,7 +38,8 @@ public class PartnersController : ControllerBase
                 Email = p.Email,
                 Phone = p.Phone,
                 Type = (int)p.Type,
-                IsActive = p.IsActive
+                IsActive = p.IsActive,
+                SupplierGroupId = p.SupplierGroupId
             });
             _logger.LogInformation("Successfully fetched {Count} partners", dtos.Count());
             return Ok(dtos);
@@ -76,7 +77,8 @@ public class PartnersController : ControllerBase
                 Email = partner.Email,
                 Phone = partner.Phone,
                 Type = (int)partner.Type,
-                IsActive = partner.IsActive
+                IsActive = partner.IsActive,
+                SupplierGroupId = partner.SupplierGroupId
             };
             _logger.LogInformation("Successfully fetched partner with ID {PartnerId}", id);
             return Ok(dto);
@@ -105,7 +107,8 @@ public class PartnersController : ControllerBase
                 ContactPerson = dto.ContactPerson,
                 Email = dto.Email,
                 Phone = dto.Phone,
-                Type = (PartnerType)dto.Type
+                Type = (PartnerType)dto.Type,
+                SupplierGroupId = dto.SupplierGroupId
             };
 
             var created = await _repository.CreateAsync(partner);
@@ -122,7 +125,8 @@ public class PartnersController : ControllerBase
                 Email = created.Email,
                 Phone = created.Phone,
                 Type = (int)created.Type,
-                IsActive = created.IsActive
+                IsActive = created.IsActive,
+                SupplierGroupId = created.SupplierGroupId
             };
 
             _logger.LogInformation("Successfully created partner with ID {PartnerId}", created.Id);
@@ -159,6 +163,7 @@ public class PartnersController : ControllerBase
             partner.Phone = dto.Phone;
             partner.Type = (PartnerType)dto.Type;
             partner.IsActive = dto.IsActive;
+            partner.SupplierGroupId = dto.SupplierGroupId;
             partner.UpdatedAt = DateTime.UtcNow;
 
             await _repository.UpdateAsync(partner);

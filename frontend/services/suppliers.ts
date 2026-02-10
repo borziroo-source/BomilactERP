@@ -14,6 +14,7 @@ type ApiPartnerDto = {
   phone?: string | null;
   type: number; // 0 = Customer, 1 = Supplier, 2 = Both
   isActive: boolean;
+  supplierGroupId?: number | null;
 };
 
 type CreateUpdatePartnerDto = {
@@ -28,6 +29,7 @@ type CreateUpdatePartnerDto = {
   phone?: string | null;
   type: number;
   isActive?: boolean;
+  supplierGroupId?: number | null;
 };
 
 const ensureOk = async (response: Response) => {
