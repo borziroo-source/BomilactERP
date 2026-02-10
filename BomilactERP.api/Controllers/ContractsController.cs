@@ -31,10 +31,10 @@ public class ContractsController : ControllerBase
 
             if (!string.IsNullOrWhiteSpace(search))
             {
-                var searchLower = search.ToLower();
+                var searchPattern = $"%{search}%";
                 query = query.Where(c => 
-                    c.ContractNumber.ToLower().Contains(searchLower) ||
-                    (c.Partner != null && c.Partner.Name.ToLower().Contains(searchLower)));
+                    EF.Functions.Like(c.ContractNumber, searchPattern) ||
+                    (c.Partner != null && EF.Functions.Like(c.Partner.Name, searchPattern)));
             }
 
             var contracts = await query.ToListAsync();
