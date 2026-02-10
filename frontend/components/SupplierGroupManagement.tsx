@@ -65,7 +65,7 @@ const SupplierGroupManagement: React.FC = () => {
       ]);
       // Convert API DTOs to frontend types
       setGroups(groupsData.map(g => ({ id: g.id.toString(), name: g.name, color: g.color })));
-      // Mock conversion for suppliers - you'll need to adjust this based on your actual API
+      // Convert supplier API data to frontend format
       setSuppliers(suppliersData.map(s => ({
         id: s.id.toString(),
         name: s.name,
