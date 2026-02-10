@@ -83,8 +83,9 @@ const parseJson = async <T>(response: Response): Promise<T> => {
   return (await response.json()) as T;
 };
 
-export const fetchContracts = async (): Promise<Contract[]> => {
-  const res = await fetch(BASE_URL, { cache: 'no-store' });
+export const fetchContracts = async (search?: string): Promise<Contract[]> => {
+  const url = search ? `${BASE_URL}?search=${encodeURIComponent(search)}` : BASE_URL;
+  const res = await fetch(url, { cache: 'no-store' });
   await ensureOk(res);
   const data = await parseJson<ApiContractDto[]>(res);
   return data.map(mapFromApi);

@@ -11,11 +11,12 @@ import {
    DollarSign,
    Droplet,
    BarChart3,
-   RefreshCw
+   RefreshCw,
+   Trash2
 } from 'lucide-react';
 import { Contract } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
-import { createContract, fetchContracts } from '../services/contracts';
+import { createContract, fetchContracts, updateContract, deleteContract } from '../services/contracts';
 import { fetchPartners, PartnerRef } from '../services/partners';
 
 const defaultContract = (): Partial<Contract> => ({
@@ -36,6 +37,8 @@ const ContractManagement: React.FC = () => {
    const [partners, setPartners] = useState<PartnerRef[]>([]);
    const [searchTerm, setSearchTerm] = useState('');
    const [isModalOpen, setIsModalOpen] = useState(false);
+   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+   const [contractToDelete, setContractToDelete] = useState<Contract | null>(null);
    const [currentContract, setCurrentContract] = useState<Partial<Contract>>(defaultContract());
    const [loading, setLoading] = useState(true);
    const [error, setError] = useState<string | null>(null);
@@ -44,15 +47,11 @@ const ContractManagement: React.FC = () => {
       const load = async () => {
          try {
             setLoading(true);
-            const [contractData, partnerData] = await Promise.all([
-               fetchContracts(),
-               fetchPartners()
-            ]);
-            setContracts(contractData);
+            const partnerData = await fetchPartners();
             setPartners(partnerData);
          } catch (err) {
             console.error(err);
-            setError('Nem sikerült betölteni a szerződéseket.');
+            setError('Nem sikerült betölteni a partnereket.');
          } finally {
             setLoading(false);
          }
@@ -60,6 +59,25 @@ const ContractManagement: React.FC = () => {
 
       load();
    }, []);
+
+   // Server-side search with debounce
+   useEffect(() => {
+      const loadContracts = async () => {
+         try {
+            const contractData = await fetchContracts(searchTerm || undefined);
+            setContracts(contractData);
+         } catch (err) {
+            console.error(err);
+            setError('Nem sikerült betölteni a szerződéseket.');
+         }
+      };
+
+      const debounce = setTimeout(() => {
+         loadContracts();
+      }, 300);
+
+      return () => clearTimeout(debounce);
+   }, [searchTerm]);
 
   const stats = useMemo(() => {
       const totalVolume = contracts.reduce((acc, c) => acc + c.milkQuotaLiters, 0);
@@ -71,15 +89,21 @@ const ContractManagement: React.FC = () => {
       return { totalVolume, avgPrice, expiring };
   }, [contracts]);
 
-  const filteredContracts = contracts.filter(c => 
-      c.partnerName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      c.contractNumber.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
    const openNewModal = () => {
       setCurrentContract(defaultContract());
       setError(null);
       setIsModalOpen(true);
+   };
+
+   const openEditModal = (contract: Contract) => {
+      setCurrentContract(contract);
+      setError(null);
+      setIsModalOpen(true);
+   };
+
+   const openDeleteDialog = (contract: Contract) => {
+      setContractToDelete(contract);
+      setIsDeleteDialogOpen(true);
    };
 
    const handleSave = async (e: React.FormEvent) => {
@@ -94,13 +118,35 @@ const ContractManagement: React.FC = () => {
       }
       try {
          setError(null);
-         const created = await createContract(currentContract);
-         const partnerName = created.partnerName || partners.find(p => p.id === created.partnerId)?.name || '';
-         setContracts(prev => [...prev, { ...created, partnerName }]);
+         if (currentContract.id) {
+            // Update existing contract
+            const updated = await updateContract(currentContract.id, currentContract);
+            const partnerName = updated.partnerName || partners.find(p => p.id === updated.partnerId)?.name || '';
+            setContracts(prev => prev.map(c => c.id === updated.id ? { ...updated, partnerName } : c));
+         } else {
+            // Create new contract
+            const created = await createContract(currentContract);
+            const partnerName = created.partnerName || partners.find(p => p.id === created.partnerId)?.name || '';
+            setContracts(prev => [...prev, { ...created, partnerName }]);
+         }
          setIsModalOpen(false);
       } catch (err) {
          console.error(err);
           setError('Nem sikerült menteni a szerződést.');
+      }
+  };
+
+  const handleDelete = async () => {
+      if (!contractToDelete) return;
+      try {
+         setError(null);
+         await deleteContract(contractToDelete.id);
+         setContracts(prev => prev.filter(c => c.id !== contractToDelete.id));
+         setIsDeleteDialogOpen(false);
+         setContractToDelete(null);
+      } catch (err) {
+         console.error(err);
+         setError('Nem sikerült törölni a szerződést.');
       }
   };
 
@@ -200,7 +246,7 @@ const ContractManagement: React.FC = () => {
                   </tr>
                </thead>
                <tbody className="divide-y divide-slate-100 font-medium">
-                  {filteredContracts.map(c => (
+                  {contracts.map(c => (
                     <tr key={c.id} className="hover:bg-slate-50 transition group">
                        <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
@@ -226,13 +272,22 @@ const ContractManagement: React.FC = () => {
                           <div className="font-black text-blue-700">{c.basePricePerLiter.toFixed(2)} RON</div>
                        </td>
                        <td className="px-6 py-4 text-right">
-                          <button 
-                            className="p-2 text-slate-300 cursor-not-allowed"
-                            title="Szerkesztés hamarosan"
-                            disabled
-                          >
-                             <Edit2 size={18} />
-                          </button>
+                          <div className="flex justify-end gap-2">
+                             <button 
+                               onClick={() => openEditModal(c)}
+                               className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition"
+                               title="Szerződés szerkesztése"
+                             >
+                                <Edit2 size={18} />
+                             </button>
+                             <button 
+                               onClick={() => openDeleteDialog(c)}
+                               className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition"
+                               title="Szerződés törlése"
+                             >
+                                <Trash2 size={18} />
+                             </button>
+                          </div>
                        </td>
                     </tr>
                   ))}
@@ -248,7 +303,7 @@ const ContractManagement: React.FC = () => {
               <div className="bg-slate-800 p-5 text-white flex justify-between items-center">
                  <h3 className="font-bold flex items-center">
                     <FileSignature className="mr-3 text-blue-400" />
-                    {t('cnt.new_contract') ?? 'Új szerződés felvitele'}
+                    {currentContract.id ? 'Szerződés szerkesztése' : (t('cnt.new_contract') ?? 'Új szerződés felvitele')}
                  </h3>
                  <button onClick={() => setIsModalOpen(false)} className="hover:bg-slate-700 p-1.5 rounded-lg transition"><X size={20}/></button>
               </div>
@@ -352,6 +407,54 @@ const ContractManagement: React.FC = () => {
                     </button>
                  </div>
               </form>
+           </div>
+        </div>
+      )}
+
+      {/* 4. Delete Confirmation Dialog */}
+      {isDeleteDialogOpen && contractToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+              <div className="bg-red-600 p-5 text-white flex justify-between items-center">
+                 <h3 className="font-bold flex items-center">
+                    <AlertTriangle className="mr-3" />
+                    Szerződés törlése
+                 </h3>
+                 <button onClick={() => setIsDeleteDialogOpen(false)} className="hover:bg-red-700 p-1.5 rounded-lg transition">
+                    <X size={20}/>
+                 </button>
+              </div>
+
+              <div className="p-6">
+                 <p className="text-slate-700 mb-4">
+                    Biztosan törölni szeretnéd ezt a szerződést?
+                 </p>
+                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6">
+                    <div className="text-sm">
+                       <div className="font-bold text-slate-900">{contractToDelete.contractNumber}</div>
+                       <div className="text-slate-500">{contractToDelete.partnerName}</div>
+                       <div className="text-xs text-slate-400 mt-2">
+                          {contractToDelete.startDate} - {contractToDelete.endDate}
+                       </div>
+                    </div>
+                 </div>
+                 
+                 <div className="flex gap-4">
+                    <button 
+                      onClick={() => setIsDeleteDialogOpen(false)}
+                      className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl transition"
+                    >
+                       Mégse
+                    </button>
+                    <button 
+                      onClick={handleDelete}
+                      className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg shadow-red-600/20 transition flex items-center justify-center"
+                    >
+                       <Trash2 size={18} className="mr-2" />
+                       Törlés
+                    </button>
+                 </div>
+              </div>
            </div>
         </div>
       )}

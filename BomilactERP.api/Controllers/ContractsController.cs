@@ -20,14 +20,24 @@ public class ContractsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<ContractDto>>> GetAll()
+    public async Task<ActionResult<IEnumerable<ContractDto>>> GetAll([FromQuery] string? search)
     {
         try
         {
-            _logger.LogInformation("Fetching all contracts");
-            var contracts = await _context.Contracts
+            _logger.LogInformation("Fetching all contracts with search: {Search}", search);
+            var query = _context.Contracts
                 .Include(c => c.Partner)
-                .ToListAsync();
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var searchPattern = $"%{search}%";
+                query = query.Where(c => 
+                    EF.Functions.Like(c.ContractNumber, searchPattern) ||
+                    (c.Partner != null && EF.Functions.Like(c.Partner.Name, searchPattern)));
+            }
+
+            var contracts = await query.ToListAsync();
 
             var dtos = contracts.Select(c => new ContractDto
             {
