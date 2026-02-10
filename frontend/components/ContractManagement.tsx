@@ -47,15 +47,11 @@ const ContractManagement: React.FC = () => {
       const load = async () => {
          try {
             setLoading(true);
-            const [contractData, partnerData] = await Promise.all([
-               fetchContracts(),
-               fetchPartners()
-            ]);
-            setContracts(contractData);
+            const partnerData = await fetchPartners();
             setPartners(partnerData);
          } catch (err) {
             console.error(err);
-            setError('Nem sikerült betölteni a szerződéseket.');
+            setError('Nem sikerült betölteni a partnereket.');
          } finally {
             setLoading(false);
          }
@@ -63,6 +59,25 @@ const ContractManagement: React.FC = () => {
 
       load();
    }, []);
+
+   // Server-side search with debounce
+   useEffect(() => {
+      const loadContracts = async () => {
+         try {
+            const contractData = await fetchContracts(searchTerm || undefined);
+            setContracts(contractData);
+         } catch (err) {
+            console.error(err);
+            setError('Nem sikerült betölteni a szerződéseket.');
+         }
+      };
+
+      const debounce = setTimeout(() => {
+         loadContracts();
+      }, 300);
+
+      return () => clearTimeout(debounce);
+   }, [searchTerm]);
 
   const stats = useMemo(() => {
       const totalVolume = contracts.reduce((acc, c) => acc + c.milkQuotaLiters, 0);
@@ -73,11 +88,6 @@ const ContractManagement: React.FC = () => {
       }).length;
       return { totalVolume, avgPrice, expiring };
   }, [contracts]);
-
-  const filteredContracts = contracts.filter(c => 
-      c.partnerName.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      c.contractNumber.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
    const openNewModal = () => {
       setCurrentContract(defaultContract());
@@ -236,7 +246,7 @@ const ContractManagement: React.FC = () => {
                   </tr>
                </thead>
                <tbody className="divide-y divide-slate-100 font-medium">
-                  {filteredContracts.map(c => (
+                  {contracts.map(c => (
                     <tr key={c.id} className="hover:bg-slate-50 transition group">
                        <td className="px-6 py-4">
                           <div className="flex items-center gap-3">

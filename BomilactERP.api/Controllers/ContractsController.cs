@@ -20,14 +20,24 @@ public class ContractsController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<ContractDto>>> GetAll()
+    public async Task<ActionResult<IEnumerable<ContractDto>>> GetAll([FromQuery] string? search)
     {
         try
         {
-            _logger.LogInformation("Fetching all contracts");
-            var contracts = await _context.Contracts
+            _logger.LogInformation("Fetching all contracts with search: {Search}", search);
+            var query = _context.Contracts
                 .Include(c => c.Partner)
-                .ToListAsync();
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var searchLower = search.ToLower();
+                query = query.Where(c => 
+                    c.ContractNumber.ToLower().Contains(searchLower) ||
+                    (c.Partner != null && c.Partner.Name.ToLower().Contains(searchLower)));
+            }
+
+            var contracts = await query.ToListAsync();
 
             var dtos = contracts.Select(c => new ContractDto
             {
