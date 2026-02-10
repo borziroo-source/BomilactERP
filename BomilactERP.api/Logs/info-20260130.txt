@@ -1,0 +1,46 @@
+2026-01-30 12:07:31.610 +02:00 [INF] [DESKTOP-8MVQPN3] [1] Starting BomilactERP application
+2026-01-30 12:07:32.626 +02:00 [INF] [DESKTOP-8MVQPN3] [1] BomilactERP application started successfully
+2026-01-30 13:59:05.537 +02:00 [INF] [DESKTOP-8MVQPN3] [39] Fetching all partners
+2026-01-30 13:59:06.262 +02:00 [INF] [DESKTOP-8MVQPN3] [34] Executed DbCommand (39ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [p].[Id], [p].[Address], [p].[City], [p].[ContactPerson], [p].[Country], [p].[CreatedAt], [p].[Email], [p].[IsActive], [p].[IsDeleted], [p].[Name], [p].[Phone], [p].[PostalCode], [p].[TaxNumber], [p].[Type], [p].[UpdatedAt]
+FROM [Partners] AS [p]
+WHERE [p].[IsDeleted] = CAST(0 AS bit)
+2026-01-30 13:59:06.354 +02:00 [INF] [DESKTOP-8MVQPN3] [34] Successfully fetched 1 partners
+2026-01-30 13:59:06.376 +02:00 [INF] [DESKTOP-8MVQPN3] [34] HTTP GET /api/Partners responded 200 in 1866.2363 ms
+2026-01-30 13:59:06.423 +02:00 [INF] [DESKTOP-8MVQPN3] [39] Fetching all partners
+2026-01-30 13:59:06.432 +02:00 [INF] [DESKTOP-8MVQPN3] [38] Executed DbCommand (5ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [p].[Id], [p].[Address], [p].[City], [p].[ContactPerson], [p].[Country], [p].[CreatedAt], [p].[Email], [p].[IsActive], [p].[IsDeleted], [p].[Name], [p].[Phone], [p].[PostalCode], [p].[TaxNumber], [p].[Type], [p].[UpdatedAt]
+FROM [Partners] AS [p]
+WHERE [p].[IsDeleted] = CAST(0 AS bit)
+2026-01-30 13:59:06.437 +02:00 [INF] [DESKTOP-8MVQPN3] [38] Successfully fetched 1 partners
+2026-01-30 13:59:06.441 +02:00 [INF] [DESKTOP-8MVQPN3] [38] HTTP GET /api/Partners responded 200 in 66.5040 ms
+2026-01-30 13:59:06.458 +02:00 [INF] [DESKTOP-8MVQPN3] [40] Fetching all partners
+2026-01-30 13:59:06.465 +02:00 [INF] [DESKTOP-8MVQPN3] [38] Executed DbCommand (4ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [p].[Id], [p].[Address], [p].[City], [p].[ContactPerson], [p].[Country], [p].[CreatedAt], [p].[Email], [p].[IsActive], [p].[IsDeleted], [p].[Name], [p].[Phone], [p].[PostalCode], [p].[TaxNumber], [p].[Type], [p].[UpdatedAt]
+FROM [Partners] AS [p]
+WHERE [p].[IsDeleted] = CAST(0 AS bit)
+2026-01-30 13:59:06.470 +02:00 [INF] [DESKTOP-8MVQPN3] [38] Successfully fetched 1 partners
+2026-01-30 13:59:06.472 +02:00 [INF] [DESKTOP-8MVQPN3] [38] HTTP GET /api/Partners responded 200 in 29.0695 ms
+2026-01-30 14:10:51.309 +02:00 [INF] [DESKTOP-8MVQPN3] [1] Starting BomilactERP application
+2026-01-30 14:10:52.139 +02:00 [INF] [DESKTOP-8MVQPN3] [1] BomilactERP application started successfully
+2026-01-30 14:16:44.427 +02:00 [INF] [DESKTOP-8MVQPN3] [23] Fetching all partners
+2026-01-30 14:16:44.964 +02:00 [INF] [DESKTOP-8MVQPN3] [27] Executed DbCommand (33ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [p].[Id], [p].[Address], [p].[City], [p].[ContactPerson], [p].[Country], [p].[CreatedAt], [p].[Email], [p].[IsActive], [p].[IsDeleted], [p].[Name], [p].[Phone], [p].[PostalCode], [p].[TaxNumber], [p].[Type], [p].[UpdatedAt]
+FROM [Partners] AS [p]
+WHERE [p].[IsDeleted] = CAST(0 AS bit)
+2026-01-30 14:16:45.055 +02:00 [INF] [DESKTOP-8MVQPN3] [27] Successfully fetched 1 partners
+2026-01-30 14:16:45.080 +02:00 [INF] [DESKTOP-8MVQPN3] [27] HTTP GET /api/Partners responded 200 in 1451.3623 ms
+2026-01-30 14:16:45.124 +02:00 [INF] [DESKTOP-8MVQPN3] [23] Fetching all partners
+2026-01-30 14:16:45.131 +02:00 [INF] [DESKTOP-8MVQPN3] [31] Executed DbCommand (4ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [p].[Id], [p].[Address], [p].[City], [p].[ContactPerson], [p].[Country], [p].[CreatedAt], [p].[Email], [p].[IsActive], [p].[IsDeleted], [p].[Name], [p].[Phone], [p].[PostalCode], [p].[TaxNumber], [p].[Type], [p].[UpdatedAt]
+FROM [Partners] AS [p]
+WHERE [p].[IsDeleted] = CAST(0 AS bit)
+2026-01-30 14:16:45.135 +02:00 [INF] [DESKTOP-8MVQPN3] [31] Successfully fetched 1 partners
+2026-01-30 14:16:45.137 +02:00 [INF] [DESKTOP-8MVQPN3] [31] HTTP GET /api/Partners responded 200 in 58.8958 ms
+2026-01-30 14:16:45.149 +02:00 [INF] [DESKTOP-8MVQPN3] [23] Fetching all partners
+2026-01-30 14:16:45.154 +02:00 [INF] [DESKTOP-8MVQPN3] [31] Executed DbCommand (2ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [p].[Id], [p].[Address], [p].[City], [p].[ContactPerson], [p].[Country], [p].[CreatedAt], [p].[Email], [p].[IsActive], [p].[IsDeleted], [p].[Name], [p].[Phone], [p].[PostalCode], [p].[TaxNumber], [p].[Type], [p].[UpdatedAt]
+FROM [Partners] AS [p]
+WHERE [p].[IsDeleted] = CAST(0 AS bit)
+2026-01-30 14:16:45.158 +02:00 [INF] [DESKTOP-8MVQPN3] [31] Successfully fetched 1 partners
+2026-01-30 14:16:45.160 +02:00 [INF] [DESKTOP-8MVQPN3] [31] HTTP GET /api/Partners responded 200 in 21.2634 ms

@@ -93,6 +93,18 @@ public class PartnersController : ControllerBase
     {
         try
         {
+            // Validáció ellenőrzése
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState
+                    .Where(x => x.Value?.Errors.Count > 0)
+                    .SelectMany(x => x.Value!.Errors.Select(e => e.ErrorMessage))
+                    .ToList();
+                
+                _logger.LogWarning("Validation failed for creating partner: {ValidationErrors}", string.Join(", ", errors));
+                return BadRequest(new { errors = errors });
+            }
+
             _logger.LogInformation("Creating new partner: {PartnerName}", dto.Name);
             var partner = new Partner
             {
@@ -140,6 +152,18 @@ public class PartnersController : ControllerBase
     {
         try
         {
+            // Validáció ellenőrzése
+            if (!ModelState.IsValid)
+            {
+                var errors = ModelState
+                    .Where(x => x.Value?.Errors.Count > 0)
+                    .SelectMany(x => x.Value!.Errors.Select(e => e.ErrorMessage))
+                    .ToList();
+                
+                _logger.LogWarning("Validation failed for updating partner {PartnerId}: {ValidationErrors}", id, string.Join(", ", errors));
+                return BadRequest(new { errors = errors });
+            }
+
             _logger.LogInformation("Updating partner with ID {PartnerId}", id);
             var partner = await _repository.GetByIdAsync(id);
             if (partner == null)

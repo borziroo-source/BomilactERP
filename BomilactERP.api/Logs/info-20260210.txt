@@ -1,0 +1,153 @@
+2026-02-10 12:25:35.365 +02:00 [INF] [DESKTOP-8MVQPN3] [1] Starting BomilactERP application
+2026-02-10 12:25:35.778 +02:00 [INF] [DESKTOP-8MVQPN3] [1] CORS Configuration - Allowed Origins: ["http://localhost:3001","http://localhost:5173","http://localhost:5174","http://localhost:3000","https://localhost:5173","https://localhost:5174","https://localhost:7102"]
+2026-02-10 12:25:36.425 +02:00 [INF] [DESKTOP-8MVQPN3] [1] BomilactERP application started successfully
+2026-02-10 12:28:23.893 +02:00 [INF] [DESKTOP-8MVQPN3] [22] Fetching all partners
+2026-02-10 12:28:24.539 +02:00 [INF] [DESKTOP-8MVQPN3] [3] Executed DbCommand (43ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [p].[Id], [p].[Address], [p].[City], [p].[ContactPerson], [p].[Country], [p].[CreatedAt], [p].[Email], [p].[IsActive], [p].[IsDeleted], [p].[Name], [p].[Phone], [p].[PostalCode], [p].[TaxNumber], [p].[Type], [p].[UpdatedAt]
+FROM [Partners] AS [p]
+WHERE [p].[IsDeleted] = CAST(0 AS bit)
+2026-02-10 12:28:24.621 +02:00 [INF] [DESKTOP-8MVQPN3] [3] Successfully fetched 3 partners
+2026-02-10 12:28:24.636 +02:00 [INF] [DESKTOP-8MVQPN3] [3] HTTP GET /api/Partners responded 200 in 1618.2147 ms
+2026-02-10 12:28:24.685 +02:00 [INF] [DESKTOP-8MVQPN3] [22] Fetching all partners
+2026-02-10 12:28:24.694 +02:00 [INF] [DESKTOP-8MVQPN3] [22] Executed DbCommand (5ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [p].[Id], [p].[Address], [p].[City], [p].[ContactPerson], [p].[Country], [p].[CreatedAt], [p].[Email], [p].[IsActive], [p].[IsDeleted], [p].[Name], [p].[Phone], [p].[PostalCode], [p].[TaxNumber], [p].[Type], [p].[UpdatedAt]
+FROM [Partners] AS [p]
+WHERE [p].[IsDeleted] = CAST(0 AS bit)
+2026-02-10 12:28:24.698 +02:00 [INF] [DESKTOP-8MVQPN3] [22] Successfully fetched 3 partners
+2026-02-10 12:28:24.700 +02:00 [INF] [DESKTOP-8MVQPN3] [22] HTTP GET /api/Partners responded 200 in 63.3100 ms
+2026-02-10 12:37:01.948 +02:00 [INF] [DESKTOP-8MVQPN3] [44] Fetching all contracts
+2026-02-10 12:37:01.948 +02:00 [INF] [DESKTOP-8MVQPN3] [47] Fetching all contracts
+2026-02-10 12:37:01.955 +02:00 [INF] [DESKTOP-8MVQPN3] [48] Fetching all partners
+2026-02-10 12:37:01.976 +02:00 [INF] [DESKTOP-8MVQPN3] [51] Executed DbCommand (3ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [p].[Id], [p].[Address], [p].[City], [p].[ContactPerson], [p].[Country], [p].[CreatedAt], [p].[Email], [p].[IsActive], [p].[IsDeleted], [p].[Name], [p].[Phone], [p].[PostalCode], [p].[TaxNumber], [p].[Type], [p].[UpdatedAt]
+FROM [Partners] AS [p]
+WHERE [p].[IsDeleted] = CAST(0 AS bit)
+2026-02-10 12:37:01.979 +02:00 [INF] [DESKTOP-8MVQPN3] [51] Successfully fetched 3 partners
+2026-02-10 12:37:01.981 +02:00 [INF] [DESKTOP-8MVQPN3] [51] HTTP GET /api/Partners responded 200 in 43.2626 ms
+2026-02-10 12:37:01.984 +02:00 [INF] [DESKTOP-8MVQPN3] [50] Fetching all partners
+2026-02-10 12:37:01.992 +02:00 [INF] [DESKTOP-8MVQPN3] [52] Executed DbCommand (6ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [p].[Id], [p].[Address], [p].[City], [p].[ContactPerson], [p].[Country], [p].[CreatedAt], [p].[Email], [p].[IsActive], [p].[IsDeleted], [p].[Name], [p].[Phone], [p].[PostalCode], [p].[TaxNumber], [p].[Type], [p].[UpdatedAt]
+FROM [Partners] AS [p]
+WHERE [p].[IsDeleted] = CAST(0 AS bit)
+2026-02-10 12:37:01.998 +02:00 [INF] [DESKTOP-8MVQPN3] [52] Successfully fetched 3 partners
+2026-02-10 12:37:02.000 +02:00 [INF] [DESKTOP-8MVQPN3] [52] HTTP GET /api/Partners responded 200 in 17.5001 ms
+2026-02-10 12:37:02.309 +02:00 [ERR] [DESKTOP-8MVQPN3] [51] Failed executing DbCommand (214ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [c].[Id], [c].[BasePricePerLiter], [c].[ContractNumber], [c].[CreatedAt], [c].[EndDate], [c].[IsDeleted], [c].[MilkQuotaLiters], [c].[Notes], [c].[PartnerId], [c].[StartDate], [c].[Status], [c].[UpdatedAt], [t].[Id], [t].[Address], [t].[City], [t].[ContactPerson], [t].[Country], [t].[CreatedAt], [t].[Email], [t].[IsActive], [t].[IsDeleted], [t].[Name], [t].[Phone], [t].[PostalCode], [t].[TaxNumber], [t].[Type], [t].[UpdatedAt]
+FROM [Contracts] AS [c]
+INNER JOIN (
+    SELECT [p].[Id], [p].[Address], [p].[City], [p].[ContactPerson], [p].[Country], [p].[CreatedAt], [p].[Email], [p].[IsActive], [p].[IsDeleted], [p].[Name], [p].[Phone], [p].[PostalCode], [p].[TaxNumber], [p].[Type], [p].[UpdatedAt]
+    FROM [Partners] AS [p]
+    WHERE [p].[IsDeleted] = CAST(0 AS bit)
+) AS [t] ON [c].[PartnerId] = [t].[Id]
+WHERE [c].[IsDeleted] = CAST(0 AS bit)
+2026-02-10 12:37:02.309 +02:00 [ERR] [DESKTOP-8MVQPN3] [47] Failed executing DbCommand (234ms) [Parameters=[], CommandType='"Text"', CommandTimeout='30']
+SELECT [c].[Id], [c].[BasePricePerLiter], [c].[ContractNumber], [c].[CreatedAt], [c].[EndDate], [c].[IsDeleted], [c].[MilkQuotaLiters], [c].[Notes], [c].[PartnerId], [c].[StartDate], [c].[Status], [c].[UpdatedAt], [t].[Id], [t].[Address], [t].[City], [t].[ContactPerson], [t].[Country], [t].[CreatedAt], [t].[Email], [t].[IsActive], [t].[IsDeleted], [t].[Name], [t].[Phone], [t].[PostalCode], [t].[TaxNumber], [t].[Type], [t].[UpdatedAt]
+FROM [Contracts] AS [c]
+INNER JOIN (
+    SELECT [p].[Id], [p].[Address], [p].[City], [p].[ContactPerson], [p].[Country], [p].[CreatedAt], [p].[Email], [p].[IsActive], [p].[IsDeleted], [p].[Name], [p].[Phone], [p].[PostalCode], [p].[TaxNumber], [p].[Type], [p].[UpdatedAt]
+    FROM [Partners] AS [p]
+    WHERE [p].[IsDeleted] = CAST(0 AS bit)
+) AS [t] ON [c].[PartnerId] = [t].[Id]
+WHERE [c].[IsDeleted] = CAST(0 AS bit)
+2026-02-10 12:37:02.512 +02:00 [ERR] [DESKTOP-8MVQPN3] [51] An exception occurred while iterating over the results of a query for context type 'BomilactERP.api.Data.BomilactDbContext'.
+Microsoft.Data.SqlClient.SqlException (0x80131904): Invalid object name 'Contracts'.
+   at Microsoft.Data.SqlClient.SqlCommand.<>c.<ExecuteDbDataReaderAsync>b__209_0(Task`1 result)
+   at System.Threading.Tasks.ContinuationResultTaskFromResultTask`2.InnerInvoke()
+   at System.Threading.ExecutionContext.RunInternal(ExecutionContext executionContext, ContextCallback callback, Object state)
+--- End of stack trace from previous location ---
+   at System.Threading.ExecutionContext.RunInternal(ExecutionContext executionContext, ContextCallback callback, Object state)
+   at System.Threading.Tasks.Task.ExecuteWithThreadLocal(Task& currentTaskSlot, Thread threadPoolThread)
+--- End of stack trace from previous location ---
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.SingleQueryingEnumerable`1.AsyncEnumerator.InitializeReaderAsync(AsyncEnumerator enumerator, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal.SqlServerExecutionStrategy.ExecuteAsync[TState,TResult](TState state, Func`4 operation, Func`4 verifySucceeded, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.SingleQueryingEnumerable`1.AsyncEnumerator.MoveNextAsync()
+ClientConnectionId:d2f67521-787b-4a25-9879-869fed291b2c
+Error Number:208,State:1,Class:16
+Microsoft.Data.SqlClient.SqlException (0x80131904): Invalid object name 'Contracts'.
+   at Microsoft.Data.SqlClient.SqlCommand.<>c.<ExecuteDbDataReaderAsync>b__209_0(Task`1 result)
+   at System.Threading.Tasks.ContinuationResultTaskFromResultTask`2.InnerInvoke()
+   at System.Threading.ExecutionContext.RunInternal(ExecutionContext executionContext, ContextCallback callback, Object state)
+--- End of stack trace from previous location ---
+   at System.Threading.ExecutionContext.RunInternal(ExecutionContext executionContext, ContextCallback callback, Object state)
+   at System.Threading.Tasks.Task.ExecuteWithThreadLocal(Task& currentTaskSlot, Thread threadPoolThread)
+--- End of stack trace from previous location ---
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.SingleQueryingEnumerable`1.AsyncEnumerator.InitializeReaderAsync(AsyncEnumerator enumerator, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal.SqlServerExecutionStrategy.ExecuteAsync[TState,TResult](TState state, Func`4 operation, Func`4 verifySucceeded, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.SingleQueryingEnumerable`1.AsyncEnumerator.MoveNextAsync()
+ClientConnectionId:d2f67521-787b-4a25-9879-869fed291b2c
+Error Number:208,State:1,Class:16
+2026-02-10 12:37:02.512 +02:00 [ERR] [DESKTOP-8MVQPN3] [47] An exception occurred while iterating over the results of a query for context type 'BomilactERP.api.Data.BomilactDbContext'.
+Microsoft.Data.SqlClient.SqlException (0x80131904): Invalid object name 'Contracts'.
+   at Microsoft.Data.SqlClient.SqlCommand.<>c.<ExecuteDbDataReaderAsync>b__209_0(Task`1 result)
+   at System.Threading.Tasks.ContinuationResultTaskFromResultTask`2.InnerInvoke()
+   at System.Threading.ExecutionContext.RunInternal(ExecutionContext executionContext, ContextCallback callback, Object state)
+--- End of stack trace from previous location ---
+   at System.Threading.ExecutionContext.RunInternal(ExecutionContext executionContext, ContextCallback callback, Object state)
+   at System.Threading.Tasks.Task.ExecuteWithThreadLocal(Task& currentTaskSlot, Thread threadPoolThread)
+--- End of stack trace from previous location ---
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.SingleQueryingEnumerable`1.AsyncEnumerator.InitializeReaderAsync(AsyncEnumerator enumerator, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal.SqlServerExecutionStrategy.ExecuteAsync[TState,TResult](TState state, Func`4 operation, Func`4 verifySucceeded, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.SingleQueryingEnumerable`1.AsyncEnumerator.MoveNextAsync()
+ClientConnectionId:b5699750-5ea3-4808-b8b2-0ed8634386ce
+Error Number:208,State:1,Class:16
+Microsoft.Data.SqlClient.SqlException (0x80131904): Invalid object name 'Contracts'.
+   at Microsoft.Data.SqlClient.SqlCommand.<>c.<ExecuteDbDataReaderAsync>b__209_0(Task`1 result)
+   at System.Threading.Tasks.ContinuationResultTaskFromResultTask`2.InnerInvoke()
+   at System.Threading.ExecutionContext.RunInternal(ExecutionContext executionContext, ContextCallback callback, Object state)
+--- End of stack trace from previous location ---
+   at System.Threading.ExecutionContext.RunInternal(ExecutionContext executionContext, ContextCallback callback, Object state)
+   at System.Threading.Tasks.Task.ExecuteWithThreadLocal(Task& currentTaskSlot, Thread threadPoolThread)
+--- End of stack trace from previous location ---
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.SingleQueryingEnumerable`1.AsyncEnumerator.InitializeReaderAsync(AsyncEnumerator enumerator, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal.SqlServerExecutionStrategy.ExecuteAsync[TState,TResult](TState state, Func`4 operation, Func`4 verifySucceeded, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.SingleQueryingEnumerable`1.AsyncEnumerator.MoveNextAsync()
+ClientConnectionId:b5699750-5ea3-4808-b8b2-0ed8634386ce
+Error Number:208,State:1,Class:16
+2026-02-10 12:37:02.677 +02:00 [ERR] [DESKTOP-8MVQPN3] [51] An error occurred while fetching contracts
+Microsoft.Data.SqlClient.SqlException (0x80131904): Invalid object name 'Contracts'.
+   at Microsoft.Data.SqlClient.SqlCommand.<>c.<ExecuteDbDataReaderAsync>b__209_0(Task`1 result)
+   at System.Threading.Tasks.ContinuationResultTaskFromResultTask`2.InnerInvoke()
+   at System.Threading.ExecutionContext.RunInternal(ExecutionContext executionContext, ContextCallback callback, Object state)
+--- End of stack trace from previous location ---
+   at System.Threading.ExecutionContext.RunInternal(ExecutionContext executionContext, ContextCallback callback, Object state)
+   at System.Threading.Tasks.Task.ExecuteWithThreadLocal(Task& currentTaskSlot, Thread threadPoolThread)
+--- End of stack trace from previous location ---
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.SingleQueryingEnumerable`1.AsyncEnumerator.InitializeReaderAsync(AsyncEnumerator enumerator, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal.SqlServerExecutionStrategy.ExecuteAsync[TState,TResult](TState state, Func`4 operation, Func`4 verifySucceeded, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.SingleQueryingEnumerable`1.AsyncEnumerator.MoveNextAsync()
+   at Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync[TSource](IQueryable`1 source, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync[TSource](IQueryable`1 source, CancellationToken cancellationToken)
+   at BomilactERP.api.Controllers.ContractsController.GetAll() in D:\Projects\Bomilact\repos\BomilactERP\BomilactERP.api\Controllers\ContractsController.cs:line 28
+ClientConnectionId:d2f67521-787b-4a25-9879-869fed291b2c
+Error Number:208,State:1,Class:16
+2026-02-10 12:37:02.806 +02:00 [ERR] [DESKTOP-8MVQPN3] [47] An error occurred while fetching contracts
+Microsoft.Data.SqlClient.SqlException (0x80131904): Invalid object name 'Contracts'.
+   at Microsoft.Data.SqlClient.SqlCommand.<>c.<ExecuteDbDataReaderAsync>b__209_0(Task`1 result)
+   at System.Threading.Tasks.ContinuationResultTaskFromResultTask`2.InnerInvoke()
+   at System.Threading.ExecutionContext.RunInternal(ExecutionContext executionContext, ContextCallback callback, Object state)
+--- End of stack trace from previous location ---
+   at System.Threading.ExecutionContext.RunInternal(ExecutionContext executionContext, ContextCallback callback, Object state)
+   at System.Threading.Tasks.Task.ExecuteWithThreadLocal(Task& currentTaskSlot, Thread threadPoolThread)
+--- End of stack trace from previous location ---
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteReaderAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.SingleQueryingEnumerable`1.AsyncEnumerator.InitializeReaderAsync(AsyncEnumerator enumerator, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.SqlServer.Storage.Internal.SqlServerExecutionStrategy.ExecuteAsync[TState,TResult](TState state, Func`4 operation, Func`4 verifySucceeded, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.Query.Internal.SingleQueryingEnumerable`1.AsyncEnumerator.MoveNextAsync()
+   at Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync[TSource](IQueryable`1 source, CancellationToken cancellationToken)
+   at Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync[TSource](IQueryable`1 source, CancellationToken cancellationToken)
+   at BomilactERP.api.Controllers.ContractsController.GetAll() in D:\Projects\Bomilact\repos\BomilactERP\BomilactERP.api\Controllers\ContractsController.cs:line 28
+ClientConnectionId:b5699750-5ea3-4808-b8b2-0ed8634386ce
+Error Number:208,State:1,Class:16
+2026-02-10 12:37:02.814 +02:00 [ERR] [DESKTOP-8MVQPN3] [51] HTTP GET /api/Contracts responded 500 in 876.6045 ms
+2026-02-10 12:37:02.818 +02:00 [ERR] [DESKTOP-8MVQPN3] [47] HTTP GET /api/Contracts responded 500 in 880.7083 ms

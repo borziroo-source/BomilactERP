@@ -48,6 +48,7 @@ export const fetchSuppliers = async (): Promise<ApiPartnerDto[]> => {
     return response.data.filter(p => p.type === 1 || p.type === 2);
   } catch (error) {
     if (axios.isAxiosError(error)) {
+      console.log('Axios error response:', error.response);
       throw new Error(error.response?.data?.message || error.message || 'Hiba történt a beszállítók lekérdezése közben');
     }
     throw error;
