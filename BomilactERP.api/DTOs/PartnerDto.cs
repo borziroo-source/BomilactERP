@@ -14,6 +14,7 @@ public class PartnerDto
     public string? Phone { get; set; }
     public int Type { get; set; }
     public bool IsActive { get; set; }
+    public int? SupplierGroupId { get; set; }
 }
 
 public class CreatePartnerDto
@@ -28,6 +29,7 @@ public class CreatePartnerDto
     public string? Email { get; set; }
     public string? Phone { get; set; }
     public int Type { get; set; }
+    public int? SupplierGroupId { get; set; }
 }
 
 public class UpdatePartnerDto
@@ -43,4 +45,5 @@ public class UpdatePartnerDto
     public string? Phone { get; set; }
     public int Type { get; set; }
     public bool IsActive { get; set; }
+    public int? SupplierGroupId { get; set; }
 }

@@ -21,6 +21,7 @@ public class BomilactDbContext : DbContext
     public DbSet<ProductionPlan> ProductionPlans { get; set; }
     public DbSet<ProductionItem> ProductionItems { get; set; }
     public DbSet<Contract> Contracts { get; set; }
+    public DbSet<SupplierGroup> SupplierGroups { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -39,6 +40,7 @@ public class BomilactDbContext : DbContext
         modelBuilder.Entity<ProductionPlan>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<ProductionItem>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<Contract>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<SupplierGroup>().HasQueryFilter(e => !e.IsDeleted);
 
         // User configuration
         modelBuilder.Entity<User>(entity =>
@@ -70,6 +72,19 @@ public class BomilactDbContext : DbContext
             entity.Property(e => e.Email).HasMaxLength(100);
             entity.Property(e => e.Phone).HasMaxLength(20);
             entity.HasIndex(e => e.TaxNumber).IsUnique();
+            
+            entity.HasOne(e => e.SupplierGroup)
+                .WithMany(sg => sg.Partners)
+                .HasForeignKey(e => e.SupplierGroupId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+        
+        // SupplierGroup configuration
+        modelBuilder.Entity<SupplierGroup>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Color).HasMaxLength(100).IsRequired();
         });
 
         // Order configuration
