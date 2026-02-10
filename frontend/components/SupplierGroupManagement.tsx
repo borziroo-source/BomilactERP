@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Plus, 
   Edit2, 
@@ -14,10 +14,12 @@ import {
   UserPlus,
   ArrowRight,
   User,
-  Settings2
+  AlertCircle
 } from 'lucide-react';
 import { SupplierGroup, Supplier } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import * as supplierGroupsApi from '../services/supplierGroups';
+import { fetchSuppliers } from '../services/suppliers';
 
 // Tailwind color preset options for groups
 const COLOR_PRESETS = [
@@ -31,34 +33,63 @@ const COLOR_PRESETS = [
   { name: 'Slate', class: 'bg-slate-100 text-slate-800' },
 ];
 
-const INITIAL_GROUPS: SupplierGroup[] = [
-  { id: 'gr1', name: 'Alcsík', color: 'bg-blue-100 text-blue-800' },
-  { id: 'gr2', name: 'Felső-Csík', color: 'bg-indigo-100 text-indigo-800' },
-  { id: 'gr3', name: 'Gyergyó-szék', color: 'bg-teal-100 text-teal-800' },
-  { id: 'gr4', name: 'Udvarhely-szék', color: 'bg-orange-100 text-orange-800' },
-];
-
-// Fix: Remove properties not defined in the Supplier interface (contractNumber, contractStartDate, contractEndDate, milkQuotaLiters, basePricePerLiter).
-const INITIAL_SUPPLIERS: Supplier[] = [
-  { id: 'sup1', name: 'Kovács István E.V. (Gazda)', cui: '19870512-112233', legalType: 'INDIVIDUAL', exploitationCode: 'RO12', apiaCode: 'API-1', hasSubsidy8: true, bankName: 'OTP', bankBranch: 'Csík', iban: 'RO12', type: 'FARMER', groupId: 'gr1', address: 'Csíkszereda', phone: '0740', status: 'ACTIVE' },
-  { id: 'sup2', name: 'Nagy Béla', cui: 'CUI2', legalType: 'INDIVIDUAL', exploitationCode: 'RO13', apiaCode: 'API-2', hasSubsidy8: false, bankName: 'BT', bankBranch: 'Csík', iban: 'RO13', type: 'FARMER', groupId: 'gr1', address: 'Csíkszereda', phone: '0741', status: 'ACTIVE' },
-  { id: 'sup3', name: 'Székely Tej Kft.', cui: 'CUI3', legalType: 'COMPANY', exploitationCode: 'RO14', apiaCode: 'API-3', hasSubsidy8: true, bankName: 'BCR', bankBranch: 'Udvarhely', iban: 'RO14', type: 'COOPERATIVE', groupId: 'gr4', address: 'Székelyudvarhely', phone: '0742', status: 'ACTIVE' },
-  { id: 'sup4', name: 'Zöld Mező Bt.', cui: 'CUI4', legalType: 'COMPANY', exploitationCode: 'RO15', apiaCode: 'API-4', hasSubsidy8: false, bankName: 'OTP', bankBranch: 'Gyergyó', iban: 'RO15', type: 'COLLECTION_POINT', groupId: '', address: 'Gyergyó', phone: '0743', status: 'ACTIVE' },
-  { id: 'sup5', name: 'Varga Sándor', cui: 'CUI5', legalType: 'INDIVIDUAL', exploitationCode: 'RO16', apiaCode: 'API-5', hasSubsidy8: true, bankName: 'BT', bankBranch: 'Gyergyó', iban: 'RO16', type: 'FARMER', groupId: 'gr3', address: 'Gyergyó', phone: '0744', status: 'ACTIVE' },
-];
-
 const SupplierGroupManagement: React.FC = () => {
   const { t } = useLanguage();
-  const [groups, setGroups] = useState<SupplierGroup[]>(INITIAL_GROUPS);
-  const [suppliers, setSuppliers] = useState<Supplier[]>(INITIAL_SUPPLIERS);
+  const [groups, setGroups] = useState<SupplierGroup[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
+  const [isDeleteWarningOpen, setIsDeleteWarningOpen] = useState(false);
   const [currentGroup, setCurrentGroup] = useState<Partial<SupplierGroup>>({});
   const [isEditing, setIsEditing] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<{ message: string; partnersCount?: number } | null>(null);
   
   // Selection state for member management
   const [memberSearch, setMemberSearch] = useState('');
+
+  // Load groups and suppliers on mount
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const [groupsData, suppliersData] = await Promise.all([
+        supplierGroupsApi.fetchSupplierGroups(),
+        fetchSuppliers()
+      ]);
+      // Convert API DTOs to frontend types
+      setGroups(groupsData.map(g => ({ id: g.id.toString(), name: g.name, color: g.color })));
+      // Mock conversion for suppliers - you'll need to adjust this based on your actual API
+      setSuppliers(suppliersData.map(s => ({
+        id: s.id.toString(),
+        name: s.name,
+        cui: s.taxNumber || '',
+        legalType: 'INDIVIDUAL' as const,
+        exploitationCode: '',
+        apiaCode: '',
+        hasSubsidy8: false,
+        bankName: '',
+        bankBranch: '',
+        iban: '',
+        type: s.type === 1 ? 'FARMER' as const : 'COOPERATIVE' as const,
+        groupId: s.supplierGroupId?.toString() || '',
+        address: s.address || '',
+        phone: s.phone || '',
+        status: s.isActive ? 'ACTIVE' as const : 'INACTIVE' as const
+      })));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Hiba történt az adatok betöltésekor');
+      console.error('Error loading data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredGroups = useMemo(() => {
     return groups.filter(g => 
@@ -87,28 +118,66 @@ const SupplierGroupManagement: React.FC = () => {
     setIsMemberModalOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    if (window.confirm('Biztosan törölni szeretnéd ezt a csoportot?')) {
-      setGroups(groups.filter(g => g.id !== id));
-      // Reassign suppliers to no group
-      setSuppliers(suppliers.map(s => s.groupId === id ? { ...s, groupId: '' } : s));
+  const handleDelete = async (id: string) => {
+    setCurrentGroup({ id });
+    setDeleteError(null);
+    setIsDeleteWarningOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!currentGroup.id) return;
+    
+    try {
+      setLoading(true);
+      await supplierGroupsApi.deleteSupplierGroup(parseInt(currentGroup.id));
+      setGroups(groups.filter(g => g.id !== currentGroup.id));
+      setIsDeleteWarningOpen(false);
+      setDeleteError(null);
+    } catch (err) {
+      // Parse the error message to check if it's a "in use" error
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      try {
+        const errorData = JSON.parse(errorMessage);
+        setDeleteError({
+          message: errorData.message || 'A csoport nem törölhető, mert használatban van.',
+          partnersCount: errorData.partnersCount
+        });
+      } catch {
+        setDeleteError({
+          message: 'A csoport nem törölhető, mert használatban van.'
+        });
+      }
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentGroup.name) return;
 
-    if (isEditing && currentGroup.id) {
-      setGroups(groups.map(g => g.id === currentGroup.id ? currentGroup as SupplierGroup : g));
-    } else {
-      const newGroup: SupplierGroup = {
-        ...currentGroup as SupplierGroup,
-        id: `gr-${Math.floor(Math.random() * 10000)}`
-      };
-      setGroups([...groups, newGroup]);
+    try {
+      setLoading(true);
+      if (isEditing && currentGroup.id) {
+        await supplierGroupsApi.updateSupplierGroup(parseInt(currentGroup.id), {
+          name: currentGroup.name,
+          color: currentGroup.color || COLOR_PRESETS[0].class
+        });
+        setGroups(groups.map(g => g.id === currentGroup.id ? currentGroup as SupplierGroup : g));
+      } else {
+        const newGroup = await supplierGroupsApi.createSupplierGroup({
+          name: currentGroup.name,
+          color: currentGroup.color || COLOR_PRESETS[0].class
+        });
+        setGroups([...groups, { id: newGroup.id.toString(), name: newGroup.name, color: newGroup.color }]);
+      }
+      setIsModalOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Hiba történt a mentés során');
+      console.error('Error saving group:', err);
+    } finally {
+      setLoading(false);
     }
-    setIsModalOpen(false);
   };
 
   // Logic for assigning/removing suppliers
@@ -451,6 +520,76 @@ const SupplierGroupManagement: React.FC = () => {
                  </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Warning Dialog */}
+      {isDeleteWarningOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="bg-red-50 p-5 border-b border-red-100 flex justify-between items-center">
+               <h3 className="font-bold text-lg text-red-800 flex items-center">
+                 <AlertCircle className="mr-3 text-red-600" size={20} />
+                 Csoport törlése
+               </h3>
+               <button 
+                 onClick={() => {
+                   setIsDeleteWarningOpen(false);
+                   setDeleteError(null);
+                 }} 
+                 className="hover:bg-red-100 text-red-500 p-1.5 rounded-lg transition"
+               >
+                 <X size={20}/>
+               </button>
+            </div>
+            
+            <div className="p-6">
+              {deleteError ? (
+                <div className="space-y-4">
+                  <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
+                    <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={20} />
+                    <div>
+                      <p className="text-sm font-bold text-red-800 mb-1">A csoport nem törölhető!</p>
+                      <p className="text-sm text-red-700">{deleteError.message}</p>
+                      {deleteError.partnersCount && (
+                        <p className="text-sm text-red-700 mt-2">
+                          Jelenleg <strong>{deleteError.partnersCount}</strong> beszállító tartozik ehhez a csoporthoz.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-sm text-slate-600">
+                    A csoport törléséhez először mozgasd át vagy töröld a beszállítókat, akik ebben a csoportban vannak.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-slate-700">
+                  Biztosan törölni szeretnéd ezt a csoportot? Ez a művelet nem vonható vissza.
+                </p>
+              )}
+            </div>
+
+            <div className="bg-slate-50 p-4 border-t border-slate-100 flex justify-end gap-3">
+              <button 
+                onClick={() => {
+                  setIsDeleteWarningOpen(false);
+                  setDeleteError(null);
+                }}
+                className="px-6 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold text-sm transition"
+              >
+                {deleteError ? 'Bezárás' : 'Mégse'}
+              </button>
+              {!deleteError && (
+                <button 
+                  onClick={confirmDelete}
+                  disabled={loading}
+                  className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-sm transition shadow-lg disabled:opacity-50"
+                >
+                  {loading ? 'Törlés...' : 'Törlés'}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
