@@ -14,7 +14,12 @@ import {
   UserPlus,
   ArrowRight,
   User,
-  AlertCircle
+  AlertCircle,
+  Upload,
+  Info,
+  Check,
+  FileJson,
+  HelpCircle
 } from 'lucide-react';
 import { SupplierGroup, Supplier } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -50,6 +55,13 @@ const SupplierGroupManagement: React.FC = () => {
   
   // Selection state for member management
   const [memberSearch, setMemberSearch] = useState('');
+  
+  // Import states
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importResult, setImportResult] = useState<supplierGroupsApi.ImportResult | null>(null);
 
   // Load groups and suppliers on mount
   useEffect(() => {
@@ -117,6 +129,38 @@ const SupplierGroupManagement: React.FC = () => {
     setCurrentGroup(group);
     setMemberSearch('');
     setIsMemberModalOpen(true);
+  };
+
+  const handleImport = async () => {
+    if (!selectedFile) return;
+    
+    try {
+      setIsImporting(true);
+      const result = await supplierGroupsApi.importSupplierGroupsFromExcel(selectedFile);
+      setImportResult(result);
+      
+      // Reload data after successful import
+      if (result.success) {
+        setTimeout(() => {
+          loadData();
+          setIsImportModalOpen(false);
+          setSelectedFile(null);
+        }, 2000);
+      }
+    } catch (err) {
+      setImportResult({
+        success: false,
+        message: err instanceof Error ? err.message : 'Az importálás során hiba lépett fel',
+        groupsCreated: 0,
+        groupsUpdated: 0,
+        suppliersCreated: 0,
+        suppliersUpdated: 0,
+        associationsCreated: 0,
+        errors: [err instanceof Error ? err.message : 'Ismeretlen hiba']
+      });
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -232,7 +276,7 @@ const SupplierGroupManagement: React.FC = () => {
           <h2 className="text-xl font-bold text-slate-800">{t('sup.groups_title')}</h2>
           <p className="text-sm text-slate-500">{t('sup.groups_subtitle')}</p>
         </div>
-        <div className="flex items-center gap-3 w-full md:w-auto">
+        <div className="flex items-center gap-3 w-full md:w-auto flex-col md:flex-row">
           <div className="relative flex-1 md:w-64">
             <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input 
@@ -243,13 +287,34 @@ const SupplierGroupManagement: React.FC = () => {
               className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
             />
           </div>
-          <button 
-            onClick={handleAddNew}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl text-sm font-bold flex items-center transition shadow-lg shadow-blue-600/20 whitespace-nowrap"
-          >
-            <Plus size={18} className="mr-2" />
-            {t('sup.groups_new_btn')}
-          </button>
+          <div className="flex gap-2 w-full md:w-auto">
+            <button 
+              onClick={() => setIsInfoModalOpen(true)}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-sm font-bold flex items-center transition"
+              title="Excel import információ"
+            >
+              <HelpCircle size={16} className="mr-1" />
+              Info
+            </button>
+            <button 
+              onClick={() => {
+                setIsImportModalOpen(true);
+                setImportResult(null);
+                setSelectedFile(null);
+              }}
+              className="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-xl text-sm font-bold flex items-center transition shadow-lg shadow-green-600/20 whitespace-nowrap"
+            >
+              <Upload size={18} className="mr-2" />
+              Import Excel
+            </button>
+            <button 
+              onClick={handleAddNew}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl text-sm font-bold flex items-center transition shadow-lg shadow-blue-600/20 whitespace-nowrap"
+            >
+              <Plus size={18} className="mr-2" />
+              {t('sup.groups_new_btn')}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -278,13 +343,13 @@ const SupplierGroupManagement: React.FC = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className={`w-3 h-3 rounded-full ${group.color.split(' ')[0]}`}></div>
+                        <div className={`w-3 h-3 rounded-full ${group.color?.split(' ')[0] || 'bg-slate-100'}`}></div>
                         <div className="font-bold text-slate-800 text-base">{group.name}</div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-tight ${group.color}`}>
-                        {group.color.split(' ')[1].replace('text-', '').split('-')[0]}
+                        {group.color?.split(' ')[1]?.replace('text-', '').split('-')[0] || 'szürke'}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -610,6 +675,265 @@ const SupplierGroupManagement: React.FC = () => {
                   {loading ? 'Törlés...' : 'Törlés'}
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Modal */}
+      {isImportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="bg-green-50 p-5 border-b border-green-100 flex justify-between items-center">
+               <h3 className="font-bold text-lg text-green-800 flex items-center">
+                 <Upload className="mr-3 text-green-600" size={20} />
+                 Excel Import
+               </h3>
+               <button onClick={() => {
+                 setIsImportModalOpen(false);
+                 setImportResult(null);
+                 setSelectedFile(null);
+               }} className="hover:bg-green-100 text-green-500 p-1.5 rounded-lg transition"><X size={20}/></button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              {!importResult ? (
+                <>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-3">Excel Fájl Kiválasztása</label>
+                    <div className="relative">
+                      <input 
+                        type="file" 
+                        accept=".xlsx,.xls"
+                        onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                        className="w-full"
+                      />
+                    </div>
+                    {selectedFile && (
+                      <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-3">
+                        <FileJson className="text-blue-600 flex-shrink-0 mt-0.5" size={18} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-blue-900 break-all">{selectedFile.name}</p>
+                          <p className="text-xs text-blue-600 mt-1">{(selectedFile.size / 1024).toFixed(2)} KB</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 flex items-start gap-3">
+                    <AlertCircle className="text-amber-600 flex-shrink-0 mt-0.5" size={18} />
+                    <div>
+                      <p className="text-sm font-bold text-amber-900 mb-1">Formátum Információ</p>
+                      <p className="text-xs text-amber-700">Az Excel-nek különálló füleket kell tartalmaznia minden gyűjtőponthoz. Az 1-5. sorok fejléc, a 6. sortól adatok. Az B oszlop: Név (kötelező), C: CNP/UI, D: Üzem. kód.</p>
+                      <button 
+                        onClick={() => {
+                          setIsImportModalOpen(false);
+                          setIsInfoModalOpen(true);
+                        }}
+                        className="text-amber-700 text-xs font-bold mt-2 hover:underline"
+                      >
+                        Részletes információ →
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        setIsImportModalOpen(false);
+                        setSelectedFile(null);
+                      }}
+                      className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl transition"
+                    >
+                      Mégse
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={handleImport}
+                      disabled={!selectedFile || isImporting}
+                      className="flex-1 py-3 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-bold rounded-xl shadow-lg shadow-green-600/30 transition flex items-center justify-center disabled:cursor-not-allowed"
+                    >
+                      {isImporting ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                          Importálás...
+                        </>
+                      ) : (
+                        <>
+                          <Upload size={18} className="mr-2" />
+                          Importálás
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-4">
+                  {importResult.success ? (
+                    <>
+                      <div className="flex items-center justify-center">
+                        <Check className="text-green-600 animate-pulse" size={48} />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-lg font-bold text-green-700 mb-4">Az import sikeres!</p>
+                        <div className="space-y-2 bg-slate-50 p-4 rounded-xl text-left">
+                          <div className="flex justify-between items-center py-2 border-b border-slate-200">
+                            <span className="text-sm text-slate-600">Létrehozott csoportok:</span>
+                            <span className="font-bold text-slate-800">{importResult.groupsCreated}</span>
+                          </div>
+                          <div className="flex justify-between items-center py-2 border-b border-slate-200">
+                            <span className="text-sm text-slate-600">Frissített csoportok:</span>
+                            <span className="font-bold text-slate-800">{importResult.groupsUpdated}</span>
+                          </div>
+                          <div className="flex justify-between items-center py-2 border-b border-slate-200">
+                            <span className="text-sm text-slate-600">Létrehozott beszállítók:</span>
+                            <span className="font-bold text-slate-800">{importResult.suppliersCreated}</span>
+                          </div>
+                          <div className="flex justify-between items-center py-2 border-b border-slate-200">
+                            <span className="text-sm text-slate-600">Frissített beszállítók:</span>
+                            <span className="font-bold text-slate-800">{importResult.suppliersUpdated}</span>
+                          </div>
+                          <div className="flex justify-between items-center py-2">
+                            <span className="text-sm text-slate-600">Kapcsolatok létrehozva:</span>
+                            <span className="font-bold text-slate-800">{importResult.associationsCreated}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-xs text-slate-500 text-center">Az oldal automatikusan frissül...</p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-center">
+                        <AlertCircle className="text-red-600" size={48} />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-lg font-bold text-red-700 mb-4">Az import sikertelen</p>
+                        <p className="text-sm text-red-600 mb-4 break-words">{importResult.message}</p>
+                        
+                        {importResult.errors.length > 0 && (
+                          <div className="bg-red-50 p-3 rounded-xl text-left mb-4">
+                            <p className="text-xs font-bold text-red-700 mb-2">Hibák:</p>
+                            <div className="space-y-1 max-h-32 overflow-y-auto text-xs text-red-600">
+                              {importResult.errors.map((err, idx) => (
+                                <div key={idx} className="truncate">• {err}</div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <button 
+                        onClick={() => {
+                          setIsImportModalOpen(false);
+                          setImportResult(null);
+                          setSelectedFile(null);
+                        }}
+                        className="w-full py-3 bg-slate-800 text-white font-bold rounded-xl hover:bg-slate-700 transition"
+                      >
+                        Bezárás
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Info Modal */}
+      {isInfoModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[80vh] flex flex-col">
+            <div className="bg-blue-50 p-5 border-b border-blue-100 flex justify-between items-center">
+               <h3 className="font-bold text-lg text-blue-800 flex items-center">
+                 <Info className="mr-3 text-blue-600" size={20} />
+                 Excel Import Formátum Útmutató
+               </h3>
+               <button onClick={() => setIsInfoModalOpen(false)} className="hover:bg-blue-100 text-blue-500 p-1.5 rounded-lg transition"><X size={20}/></button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto flex-1 space-y-6">
+              <div>
+                <h4 className="font-bold text-slate-800 mb-3 flex items-center">
+                  <FileJson className="mr-2 text-blue-600" size={18} />
+                  Fájl Szerkezete
+                </h4>
+                <div className="bg-slate-50 p-4 rounded-xl text-sm space-y-2 text-slate-700 font-mono text-xs">
+                  <p>📊 <strong>Minden fül</strong> = Egy gyűjtőpont (pl. "Budapest", "Debrecen")</p>
+                  <p>⏭️  Az <strong>"total"</strong> fül <strong>kihagyódik</strong> az importálásból</p>
+                  <p>📍 1-5. sorok: Fejléc / Üres (figyelmen kívül hagyott)</p>
+                  <p>📍 6. sor és után: Beszállítók adatai</p>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="font-bold text-slate-800 mb-3">Oszlopok</h4>
+                <div className="space-y-2">
+                  <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                    <p className="text-sm font-bold text-blue-900">B oszlop: <span className="text-red-600">Név (kötelező)</span></p>
+                    <p className="text-xs text-blue-700">A beszállító teljes neve</p>
+                  </div>
+                  <div className="bg-amber-50 p-3 rounded-lg border border-amber-200">
+                    <p className="text-sm font-bold text-amber-900">C oszlop: CNP/UI (opcionális)</p>
+                    <p className="text-xs text-amber-700">Adóazonosító szám</p>
+                  </div>
+                  <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-200">
+                    <p className="text-sm font-bold text-emerald-900">D oszlop: Üzem. Kód (opcionális)</p>
+                    <p className="text-xs text-emerald-700">Üzemeltetési / Kihasználási kód</p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="font-bold text-slate-800 mb-3">Például (Budapest fül):</h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs border-collapse border border-slate-300">
+                    <thead>
+                      <tr className="bg-slate-200">
+                        <th className="border border-slate-300 p-2">A</th>
+                        <th className="border border-slate-300 p-2">B - Név</th>
+                        <th className="border border-slate-300 p-2">C - CNP/UI</th>
+                        <th className="border border-slate-300 p-2">D - Üzem.Kód</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="bg-slate-50">
+                        <td className="border border-slate-300 p-2">1-5</td>
+                        <td className="border border-slate-300 p-2">[Fejléc]</td>
+                        <td className="border border-slate-300 p-2"></td>
+                        <td className="border border-slate-300 p-2"></td>
+                      </tr>
+                      <tr>
+                        <td className="border border-slate-300 p-2">6</td>
+                        <td className="border border-slate-300 p-2 font-bold">Agro Kft.</td>
+                        <td className="border border-slate-300 p-2">12345678901</td>
+                        <td className="border border-slate-300 p-2">EXP-001</td>
+                      </tr>
+                      <tr>
+                        <td className="border border-slate-300 p-2">7</td>
+                        <td className="border border-slate-300 p-2 font-bold">Bio Farm Zrt.</td>
+                        <td className="border border-slate-300 p-2">98765432101</td>
+                        <td className="border border-slate-300 p-2">EXP-002</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="bg-green-50 p-4 rounded-xl border border-green-200">
+                <p className="text-sm font-bold text-green-900 mb-2">✓ A duplikáció megelőzése</p>
+                <p className="text-xs text-green-700">A beszállítók a <strong>CNP/UI szám</strong> alapján kerülnek azonosításra. Ez azt jelenti, hogy ugyanazz a CNP/UI nem vezethet duplikált bejegyzésekhez - a meglévő beszállító frissítésre kerül.</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 p-4 border-t border-slate-100 flex justify-end">
+              <button 
+                onClick={() => setIsInfoModalOpen(false)}
+                className="px-6 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition"
+              >
+                Rendben
+              </button>
             </div>
           </div>
         </div>

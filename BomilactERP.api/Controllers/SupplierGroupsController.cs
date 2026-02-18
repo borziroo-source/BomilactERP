@@ -4,6 +4,7 @@ using BomilactERP.api.DTOs;
 using BomilactERP.api.Models;
 using BomilactERP.api.Repositories;
 using BomilactERP.api.Data;
+using BomilactERP.api.Services;
 
 namespace BomilactERP.api.Controllers;
 
@@ -14,15 +15,18 @@ public class SupplierGroupsController : ControllerBase
     private readonly IRepository<SupplierGroup> _repository;
     private readonly BomilactDbContext _context;
     private readonly ILogger<SupplierGroupsController> _logger;
+    private readonly SupplierGroupImportService _importService;
 
     public SupplierGroupsController(
         IRepository<SupplierGroup> repository,
         BomilactDbContext context,
-        ILogger<SupplierGroupsController> logger)
+        ILogger<SupplierGroupsController> logger,
+        SupplierGroupImportService importService)
     {
         _repository = repository;
         _context = context;
         _logger = logger;
+        _importService = importService;
     }
 
     [HttpGet]
@@ -282,6 +286,48 @@ public class SupplierGroupsController : ControllerBase
         {
             _logger.LogError(ex, "An error occurred while removing partner from supplier group ID {GroupId}", id);
             return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    [HttpPost("import")]
+    public async Task<ActionResult<ImportResult>> ImportFromExcel(IFormFile file)
+    {
+        try
+        {
+            if (file == null || file.Length == 0)
+            {
+                _logger.LogWarning("Import attempted with no file");
+                return BadRequest(new { message = "Kérjük, töltse fel az Excel fájlt." });
+            }
+
+            if (!file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) &&
+                !file.FileName.EndsWith(".xls", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("Import attempted with invalid file type: {FileName}", file.FileName);
+                return BadRequest(new { message = "Csak Excel fájlok (.xlsx, .xls) engedélyezék." });
+            }
+
+            _logger.LogInformation("Starting import from file: {FileName}", file.FileName);
+            
+            using (var stream = file.OpenReadStream())
+            {
+                var result = await _importService.ImportSupplierGroupsFromExcelAsync(stream);
+                
+                _logger.LogInformation("Import completed. Success: {Success}, Groups Created: {GroupsCreated}, Suppliers Created: {SuppliersCreated}",
+                    result.Success, result.GroupsCreated, result.SuppliersCreated);
+
+                return Ok(result);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "An error occurred during import");
+            return StatusCode(500, new
+            {
+                success = false,
+                message = "Az importálás során hiba lépett fel",
+                errors = new[] { ex.Message }
+            });
         }
     }
 }

@@ -69,6 +69,8 @@ public class BomilactDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Name).HasMaxLength(200).IsRequired();
             entity.Property(e => e.TaxNumber).HasMaxLength(50);
+            entity.Property(e => e.ExploitationCode).HasMaxLength(50);
+            entity.Property(e => e.ApiaCode).HasMaxLength(50);
             entity.Property(e => e.Email).HasMaxLength(100);
             entity.Property(e => e.Phone).HasMaxLength(20);
             entity.HasIndex(e => e.TaxNumber).IsUnique();

@@ -5,6 +5,8 @@ public class Partner : ISoftDeletable
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? TaxNumber { get; set; }
+    public string? ExploitationCode { get; set; }
+    public string? ApiaCode { get; set; }
     public string? Address { get; set; }
     public string? City { get; set; }
     public string? PostalCode { get; set; }

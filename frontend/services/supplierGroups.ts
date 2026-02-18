@@ -103,3 +103,26 @@ export const removeSupplierGroupMember = async (groupId: number, partnerId: numb
   });
   await ensureOk(res);
 };
+
+export type ImportResult = {
+  success: boolean;
+  message: string;
+  groupsCreated: number;
+  groupsUpdated: number;
+  suppliersCreated: number;
+  suppliersUpdated: number;
+  associationsCreated: number;
+  errors: string[];
+};
+
+export const importSupplierGroupsFromExcel = async (file: File): Promise<ImportResult> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  const res = await fetch(`${BASE_URL}/import`, {
+    method: 'POST',
+    body: formData,
+  });
+  await ensureOk(res);
+  return await parseJson<ImportResult>(res);
+};

@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Search, 
   Plus, 
@@ -21,7 +21,8 @@ import {
   Settings2,
   ChevronRight,
   Info,
-  RotateCw
+  RotateCw,
+  Upload
 } from 'lucide-react';
 import { Supplier, SupplierType, SupplierGroup, LegalType } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -108,7 +109,9 @@ const SupplierManagement: React.FC = () => {
   const [currentSupplier, setCurrentSupplier] = useState<Partial<Supplier>>({});
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isImporting, setIsImporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Adatok betöltése az API-ból
   useEffect(() => {
@@ -127,8 +130,8 @@ const SupplierManagement: React.FC = () => {
         name: apiSupplier.name,
         cui: apiSupplier.taxNumber || '',
         legalType: 'COMPANY' as LegalType,
-        exploitationCode: '',
-        apiaCode: '',
+        exploitationCode: apiSupplier.exploitationCode || '',
+        apiaCode: apiSupplier.apiaCode || '',
         hasSubsidy8: false,
         bankName: '',
         bankBranch: '',
@@ -204,6 +207,8 @@ const SupplierManagement: React.FC = () => {
       const apiData = {
         name: currentSupplier.name,
         taxNumber: currentSupplier.cui,
+        exploitationCode: currentSupplier.exploitationCode || null,
+        apiaCode: currentSupplier.apiaCode || null,
         address: currentSupplier.address,
         city: '',
         postalCode: '',
@@ -225,8 +230,8 @@ const SupplierManagement: React.FC = () => {
           name: created.name,
           cui: created.taxNumber || '',
           legalType: currentSupplier.legalType || 'INDIVIDUAL',
-          exploitationCode: currentSupplier.exploitationCode || '',
-          apiaCode: currentSupplier.apiaCode || '',
+          exploitationCode: created.exploitationCode || currentSupplier.exploitationCode || '',
+          apiaCode: created.apiaCode || currentSupplier.apiaCode || '',
           hasSubsidy8: currentSupplier.hasSubsidy8 || false,
           bankName: currentSupplier.bankName || '',
           bankBranch: currentSupplier.bankBranch || '',
@@ -246,6 +251,37 @@ const SupplierManagement: React.FC = () => {
     } catch (err) {
       alert('Hiba történt a mentés során: ' + (err instanceof Error ? err.message : 'Ismeretlen hiba'));
       console.error('Error saving supplier:', err);
+    }
+  };
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleImportFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsImporting(true);
+      setError(null);
+      const result = await supplierService.importSuppliers(file);
+      await loadSuppliers();
+
+      const errorLines = result.errors.slice(0, 3).map(e => `#${e.rowNumber}: ${e.message}`);
+      const moreErrors = result.errors.length > 3 ? ` (+${result.errors.length - 3})` : '';
+      const errorSummary = result.errors.length > 0 ? `\nHibak: ${errorLines.join(', ')}${moreErrors}` : '';
+
+      alert(
+        `Import kesz. Uj partnerek: ${result.createdPartners}, kihagyva: ${result.skippedPartners}. ` +
+        `Uj szerzodesek: ${result.createdContracts}, kihagyva: ${result.skippedContracts}.${errorSummary}`
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Hiba tortent az import soran');
+      console.error('Error importing suppliers:', err);
+    } finally {
+      setIsImporting(false);
+      event.target.value = '';
     }
   };
 
@@ -302,6 +338,14 @@ const SupplierManagement: React.FC = () => {
           >
             <RotateCw size={18} className={isLoading ? 'animate-spin' : ''} />
           </button>
+          <button
+            onClick={handleImportClick}
+            disabled={isImporting || isLoading}
+            className="px-3 py-2.5 rounded-xl text-sm font-bold flex items-center transition border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
+            title={t('sup.import_btn')}
+          >
+            <Upload size={18} className={isImporting ? 'animate-pulse' : ''} />
+          </button>
           <button 
             onClick={handleAddNew}
             className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center transition shadow-lg shadow-blue-600/20"
@@ -310,6 +354,13 @@ const SupplierManagement: React.FC = () => {
             {t('sup.new_btn')}
           </button>
         </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".xlsx,.xls"
+          onChange={handleImportFile}
+          className="hidden"
+        />
       </div>
 
       {/* Toolbar Filters */}

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using BomilactERP.api.Data;
 using BomilactERP.api.Repositories;
+using BomilactERP.api.Services;
 using Serilog;
 
 // Configure Serilog
@@ -30,6 +31,9 @@ try
 
     // Add generic repository
     builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
+
+    // Add import service
+    builder.Services.AddScoped<SupplierGroupImportService>();
 
     // Add CORS
     builder.Services.AddCors(options =>

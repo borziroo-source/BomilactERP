@@ -5,6 +5,8 @@ type ApiPartnerDto = {
   id: number;
   name: string;
   taxNumber?: string | null;
+  exploitationCode?: string | null;
+  apiaCode?: string | null;
   address?: string | null;
   city?: string | null;
   postalCode?: string | null;
@@ -20,6 +22,8 @@ type ApiPartnerDto = {
 type CreateUpdatePartnerDto = {
   name: string;
   taxNumber?: string | null;
+  exploitationCode?: string | null;
+  apiaCode?: string | null;
   address?: string | null;
   city?: string | null;
   postalCode?: string | null;
@@ -30,6 +34,14 @@ type CreateUpdatePartnerDto = {
   type: number;
   isActive?: boolean;
   supplierGroupId?: number | null;
+};
+
+export type ImportSuppliersResult = {
+  createdPartners: number;
+  skippedPartners: number;
+  createdContracts: number;
+  skippedContracts: number;
+  errors: Array<{ rowNumber: number; message: string }>;
 };
 
 const ensureOk = async (response: Response) => {
@@ -86,4 +98,16 @@ export const deleteSupplier = async (id: number): Promise<void> => {
     method: 'DELETE',
   });
   await ensureOk(res);
+};
+
+export const importSuppliers = async (file: File): Promise<ImportSuppliersResult> => {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const res = await fetch(`${BASE_URL}/import-suppliers`, {
+    method: 'POST',
+    body: formData,
+  });
+  await ensureOk(res);
+  return await parseJson<ImportSuppliersResult>(res);
 };
