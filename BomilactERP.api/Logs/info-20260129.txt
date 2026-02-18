@@ -1,0 +1,8 @@
+2026-01-29 21:13:37.172 +02:00 [INF] [DESKTOP-8MVQPN3] [1] Starting BomilactERP application
+2026-01-29 21:13:38.718 +02:00 [INF] [DESKTOP-8MVQPN3] [1] BomilactERP application started successfully
+2026-01-29 21:41:36.778 +02:00 [INF] [DESKTOP-8MVQPN3] [1] Starting BomilactERP application
+2026-01-29 21:41:37.886 +02:00 [INF] [DESKTOP-8MVQPN3] [1] BomilactERP application started successfully
+2026-01-29 22:07:25.137 +02:00 [INF] [DESKTOP-8MVQPN3] [1] Starting BomilactERP application
+2026-01-29 22:07:26.326 +02:00 [INF] [DESKTOP-8MVQPN3] [1] BomilactERP application started successfully
+2026-01-29 22:10:04.754 +02:00 [INF] [DESKTOP-8MVQPN3] [1] Starting BomilactERP application
+2026-01-29 22:10:05.750 +02:00 [INF] [DESKTOP-8MVQPN3] [1] BomilactERP application started successfully

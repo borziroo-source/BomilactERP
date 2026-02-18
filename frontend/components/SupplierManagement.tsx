@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { Supplier, SupplierType, SupplierGroup, LegalType } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useToast } from '../contexts/ToastContext';
 import * as supplierService from '../services/suppliers';
 
 // Mock Groups
@@ -99,6 +100,7 @@ const INITIAL_SUPPLIERS: Supplier[] = [
 
 const SupplierManagement: React.FC = () => {
   const { t } = useLanguage();
+  const { success, error, warning } = useToast();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [groups] = useState<SupplierGroup[]>(INITIAL_GROUPS);
   const [searchTerm, setSearchTerm] = useState('');
@@ -107,7 +109,7 @@ const SupplierManagement: React.FC = () => {
   const [currentSupplier, setCurrentSupplier] = useState<Partial<Supplier>>({});
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
   // Adatok betöltése az API-ból
   useEffect(() => {
@@ -117,7 +119,7 @@ const SupplierManagement: React.FC = () => {
   const loadSuppliers = async () => {
     try {
       setIsLoading(true);
-      setError(null);
+      setErrorMessage(null);
       const data = await supplierService.fetchSuppliers();
       
       // API adatok konvertálása Supplier típusra
@@ -135,6 +137,10 @@ const SupplierManagement: React.FC = () => {
         type: 'FARMER' as SupplierType,
         groupId: '',
         address: `${apiSupplier.address || ''} ${apiSupplier.city || ''}`.trim(),
+        city: apiSupplier.city || '',
+        postalCode: apiSupplier.postalCode || '',
+        country: apiSupplier.country || '',
+        contactPerson: apiSupplier.contactPerson || '',
         phone: apiSupplier.phone || '',
         email: apiSupplier.email || '',
         status: apiSupplier.isActive ? 'ACTIVE' : 'INACTIVE',
@@ -144,7 +150,9 @@ const SupplierManagement: React.FC = () => {
       
       setSuppliers(mappedSuppliers);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Hiba történt az adatok betöltésekor');
+      const errMsg = err instanceof Error ? err.message : 'Hiba történt az adatok betöltésekor';
+      setErrorMessage(errMsg);
+      error(errMsg);
       console.error('Error loading suppliers:', err);
       // Visszaesés mock adatokra hiba esetén
       setSuppliers(INITIAL_SUPPLIERS);
@@ -172,8 +180,10 @@ const SupplierManagement: React.FC = () => {
       try {
         await supplierService.deleteSupplier(parseInt(id));
         setSuppliers(suppliers.filter(s => s.id !== id));
+        success('Beszállító sikeresen törölve');
       } catch (err) {
-        alert('Hiba történt a törlés során: ' + (err instanceof Error ? err.message : 'Ismeretlen hiba'));
+        const errorMessage = 'Hiba történt a törlés során: ' + (err instanceof Error ? err.message : 'Ismeretlen hiba');
+        error(errorMessage);
         console.error('Error deleting supplier:', err);
       }
     }
@@ -189,6 +199,7 @@ const SupplierManagement: React.FC = () => {
     setCurrentSupplier({
       name: '', cui: '', legalType: 'INDIVIDUAL', exploitationCode: '', apiaCode: '', hasSubsidy8: false,
       bankName: '', bankBranch: '', iban: '', type: 'FARMER', groupId: '', address: '', phone: '',
+      city: '', postalCode: '', country: 'RO', contactPerson: '',
       status: 'ACTIVE', invoiceSeries: 'SZM', nextInvoiceNumber: 1, parentSupplierId: '',
     });
     setIsEditing(false);
@@ -197,17 +208,32 @@ const SupplierManagement: React.FC = () => {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentSupplier.name || !currentSupplier.cui) return;
+    
+    // Kötelező mezők validálása
+    if (!currentSupplier.name || !currentSupplier.name.trim()) {
+      error('A megnevezés megadása kötelező');
+      return;
+    }
+    
+    if (!currentSupplier.cui || !currentSupplier.cui.trim()) {
+      error('Az adószám / CUI / CNP megadása kötelező');
+      return;
+    }
+    
+    if (currentSupplier.name.trim().length < 2) {
+      error('A megnevezés hossza minimum 2 karakter kell legyen');
+      return;
+    }
 
     try {
       const apiData = {
-        name: currentSupplier.name,
-        taxNumber: currentSupplier.cui,
+        name: currentSupplier.name.trim(),
+        taxNumber: currentSupplier.cui.trim(),
         address: currentSupplier.address,
-        city: '',
-        postalCode: '',
-        country: 'RO',
-        contactPerson: '',
+        city: currentSupplier.city || null,
+        postalCode: currentSupplier.postalCode || null,
+        country: currentSupplier.country || null,
+        contactPerson: currentSupplier.contactPerson || null,
         email: currentSupplier.email || null,
         phone: currentSupplier.phone || null,
         type: 1, // Supplier
@@ -217,6 +243,7 @@ const SupplierManagement: React.FC = () => {
       if (isEditing && currentSupplier.id) {
         await supplierService.updateSupplier(parseInt(currentSupplier.id), apiData);
         setSuppliers(suppliers.map(s => s.id === currentSupplier.id ? currentSupplier as Supplier : s));
+        success('Beszállító sikeresen frissítve');
       } else {
         const created = await supplierService.createSupplier(apiData);
         const newSupplier: Supplier = {
@@ -233,6 +260,10 @@ const SupplierManagement: React.FC = () => {
           type: currentSupplier.type || 'FARMER',
           groupId: currentSupplier.groupId,
           address: created.address || '',
+          city: created.city || currentSupplier.city || '',
+          postalCode: created.postalCode || currentSupplier.postalCode || '',
+          country: created.country || currentSupplier.country || '',
+          contactPerson: created.contactPerson || currentSupplier.contactPerson || '',
           phone: created.phone || '',
           email: created.email || '',
           status: created.isActive ? 'ACTIVE' : 'INACTIVE',
@@ -240,11 +271,22 @@ const SupplierManagement: React.FC = () => {
           nextInvoiceNumber: currentSupplier.nextInvoiceNumber
         };
         setSuppliers([...suppliers, newSupplier]);
+        success('Új beszállító sikeresen létrehozva');
       }
       setIsModalOpen(false);
-    } catch (err) {
-      alert('Hiba történt a mentés során: ' + (err instanceof Error ? err.message : 'Ismeretlen hiba'));
+    } catch (err: any) {
       console.error('Error saving supplier:', err);
+      
+      // Backend validációs hibák kezelése
+      if (err.response?.data?.errors && Array.isArray(err.response.data.errors)) {
+        // Minden validációs hiba megjelenítése külön toast-ban
+        err.response.data.errors.forEach((errorMsg: string) => {
+          error(errorMsg);
+        });
+      } else {
+        const errorMessage = err.response?.data?.message || err.message || 'Hiba történt a mentés során';
+        error(errorMessage);
+      }
     }
   };
 
@@ -260,9 +302,9 @@ const SupplierManagement: React.FC = () => {
     <div className="animate-fade-in space-y-6">
       
       {/* Hiba üzenet */}
-      {error && (
+      {errorMessage && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl">
-          <strong>Hiba:</strong> {error}
+          <strong>Hiba:</strong> {errorMessage}
         </div>
       )}
 

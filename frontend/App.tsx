@@ -52,6 +52,8 @@ import AuditLog from './components/AuditLog';
 import FarmerInvoicing from './components/FarmerInvoicing'; // Új modul import
 import { askBomilactCore } from './services/geminiService';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
+import { ToastProvider } from './contexts/ToastContext';
+import ToastContainer from './components/ToastContainer';
 import { Language } from './translations';
 
 const MainLayout: React.FC = () => {
@@ -430,7 +432,10 @@ const MainLayout: React.FC = () => {
 const App = () => {
   return (
     <LanguageProvider>
-      <MainLayout />
+      <ToastProvider>
+        <ToastContainer />
+        <MainLayout />
+      </ToastProvider>
     </LanguageProvider>
   );
 };

@@ -93,6 +93,10 @@ export interface Supplier {
   groupId?: string; // Csoport azonosító
   parentSupplierId?: string; // ÚJ: Ha egy csarnokhoz (COLLECTION_POINT) tartozik
   address: string;
+  city?: string;
+  postalCode?: string;
+  country?: string;
+  contactPerson?: string;
   phone: string;
   email?: string;
   status: 'ACTIVE' | 'INACTIVE';

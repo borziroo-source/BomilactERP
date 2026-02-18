@@ -32,14 +32,28 @@ try
     builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 
     // Add CORS
+    var corsSettings = builder.Configuration.GetSection("CorsSettings");
+    var allowedOrigins = corsSettings.GetSection("AllowedOrigins").Get<string[]>() ?? new string[] { };
+
+    Log.Information("CORS Configuration - Allowed Origins: {@AllowedOrigins}", allowedOrigins);
+
     builder.Services.AddCors(options =>
     {
         options.AddPolicy("AllowFrontend",
             policy =>
             {
-                policy.WithOrigins("http://localhost:5173", "http://localhost:5174", "http://localhost:3000")
-                      .AllowAnyHeader()
-                      .AllowAnyMethod();
+                if (allowedOrigins.Length > 0)
+                {
+                    policy.WithOrigins(allowedOrigins)
+                          .AllowAnyHeader()
+                          .AllowAnyMethod();
+                }
+                else
+                {
+                    policy.AllowAnyOrigin()
+                          .AllowAnyHeader()
+                          .AllowAnyMethod();
+                }
             });
     });
 
@@ -59,9 +73,9 @@ try
 
     app.UseSerilogRequestLogging();
 
-    app.UseHttpsRedirection();
-
     app.UseCors("AllowFrontend");
+
+    app.UseHttpsRedirection();
 
     app.UseAuthorization();
 
