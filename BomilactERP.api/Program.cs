@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using BomilactERP.api.Data;
 using BomilactERP.api.Repositories;
+using BomilactERP.api.Services;
 using Serilog;
 
 // Configure Serilog
@@ -31,13 +32,16 @@ try
     // Add generic repository
     builder.Services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
 
+    // Add import service
+    builder.Services.AddScoped<SupplierGroupImportService>();
+
     // Add CORS
     builder.Services.AddCors(options =>
     {
         options.AddPolicy("AllowFrontend",
             policy =>
             {
-                policy.WithOrigins("http://localhost:5173", "http://localhost:5174", "http://localhost:3000")
+                policy.WithOrigins("http://192.168.5.120:3001", "https://localhost:7102", "https://192.168.5.120:7102", "http://localhost:5173", "http://localhost:5174", "http://localhost:3000")
                       .AllowAnyHeader()
                       .AllowAnyMethod();
             });

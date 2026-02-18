@@ -5,6 +5,8 @@ public class Partner : ISoftDeletable
     public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? TaxNumber { get; set; }
+    public string? ExploitationCode { get; set; }
+    public string? ApiaCode { get; set; }
     public string? Address { get; set; }
     public string? City { get; set; }
     public string? PostalCode { get; set; }
@@ -17,6 +19,10 @@ public class Partner : ISoftDeletable
     public bool IsDeleted { get; set; } = false;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
+    
+    // Supplier Group relationship
+    public int? SupplierGroupId { get; set; }
+    public SupplierGroup? SupplierGroup { get; set; }
 
     // Navigation properties
     public ICollection<Order> Orders { get; set; } = new List<Order>();

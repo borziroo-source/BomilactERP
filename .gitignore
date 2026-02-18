@@ -289,5 +289,6 @@ Thumbs.db
 **/.vs/
 Production.Api/Logs/
 Production.Api/Configuration/Sales/PurchaseOrderinitializer.cs
+BomilactERP.api/Logs/
 *.png
 *.jpg

@@ -1,2 +1,0 @@
-2026-01-22 08:49:17.565 +02:00 [INF] [DESKTOP-8MVQPN3] [1] Starting BomilactERP application
-2026-01-22 08:49:18.301 +02:00 [INF] [DESKTOP-8MVQPN3] [1] BomilactERP application started successfully

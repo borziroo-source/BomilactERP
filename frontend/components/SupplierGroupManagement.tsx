@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Plus, 
   Edit2, 
@@ -14,10 +14,17 @@ import {
   UserPlus,
   ArrowRight,
   User,
-  Settings2
+  AlertCircle,
+  Upload,
+  Info,
+  Check,
+  FileJson,
+  HelpCircle
 } from 'lucide-react';
 import { SupplierGroup, Supplier } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
+import * as supplierGroupsApi from '../services/supplierGroups';
+import { fetchSuppliers } from '../services/suppliers';
 
 // Tailwind color preset options for groups
 const COLOR_PRESETS = [
@@ -31,34 +38,71 @@ const COLOR_PRESETS = [
   { name: 'Slate', class: 'bg-slate-100 text-slate-800' },
 ];
 
-const INITIAL_GROUPS: SupplierGroup[] = [
-  { id: 'gr1', name: 'Alcsík', color: 'bg-blue-100 text-blue-800' },
-  { id: 'gr2', name: 'Felső-Csík', color: 'bg-indigo-100 text-indigo-800' },
-  { id: 'gr3', name: 'Gyergyó-szék', color: 'bg-teal-100 text-teal-800' },
-  { id: 'gr4', name: 'Udvarhely-szék', color: 'bg-orange-100 text-orange-800' },
-];
-
-// Fix: Remove properties not defined in the Supplier interface (contractNumber, contractStartDate, contractEndDate, milkQuotaLiters, basePricePerLiter).
-const INITIAL_SUPPLIERS: Supplier[] = [
-  { id: 'sup1', name: 'Kovács István E.V. (Gazda)', cui: '19870512-112233', legalType: 'INDIVIDUAL', exploitationCode: 'RO12', apiaCode: 'API-1', hasSubsidy8: true, bankName: 'OTP', bankBranch: 'Csík', iban: 'RO12', type: 'FARMER', groupId: 'gr1', address: 'Csíkszereda', phone: '0740', status: 'ACTIVE' },
-  { id: 'sup2', name: 'Nagy Béla', cui: 'CUI2', legalType: 'INDIVIDUAL', exploitationCode: 'RO13', apiaCode: 'API-2', hasSubsidy8: false, bankName: 'BT', bankBranch: 'Csík', iban: 'RO13', type: 'FARMER', groupId: 'gr1', address: 'Csíkszereda', phone: '0741', status: 'ACTIVE' },
-  { id: 'sup3', name: 'Székely Tej Kft.', cui: 'CUI3', legalType: 'COMPANY', exploitationCode: 'RO14', apiaCode: 'API-3', hasSubsidy8: true, bankName: 'BCR', bankBranch: 'Udvarhely', iban: 'RO14', type: 'COOPERATIVE', groupId: 'gr4', address: 'Székelyudvarhely', phone: '0742', status: 'ACTIVE' },
-  { id: 'sup4', name: 'Zöld Mező Bt.', cui: 'CUI4', legalType: 'COMPANY', exploitationCode: 'RO15', apiaCode: 'API-4', hasSubsidy8: false, bankName: 'OTP', bankBranch: 'Gyergyó', iban: 'RO15', type: 'COLLECTION_POINT', groupId: '', address: 'Gyergyó', phone: '0743', status: 'ACTIVE' },
-  { id: 'sup5', name: 'Varga Sándor', cui: 'CUI5', legalType: 'INDIVIDUAL', exploitationCode: 'RO16', apiaCode: 'API-5', hasSubsidy8: true, bankName: 'BT', bankBranch: 'Gyergyó', iban: 'RO16', type: 'FARMER', groupId: 'gr3', address: 'Gyergyó', phone: '0744', status: 'ACTIVE' },
-];
-
 const SupplierGroupManagement: React.FC = () => {
   const { t } = useLanguage();
-  const [groups, setGroups] = useState<SupplierGroup[]>(INITIAL_GROUPS);
-  const [suppliers, setSuppliers] = useState<Supplier[]>(INITIAL_SUPPLIERS);
+  const [groups, setGroups] = useState<SupplierGroup[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
+  const [isDeleteWarningOpen, setIsDeleteWarningOpen] = useState(false);
   const [currentGroup, setCurrentGroup] = useState<Partial<SupplierGroup>>({});
   const [isEditing, setIsEditing] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<{ message: string; partnersCount?: number } | null>(null);
+  const [memberUpdating, setMemberUpdating] = useState(false);
   
   // Selection state for member management
   const [memberSearch, setMemberSearch] = useState('');
+  
+  // Import states
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isInfoModalOpen, setIsInfoModalOpen] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importResult, setImportResult] = useState<supplierGroupsApi.ImportResult | null>(null);
+
+  // Load groups and suppliers on mount
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const [groupsData, suppliersData] = await Promise.all([
+        supplierGroupsApi.fetchSupplierGroups(),
+        fetchSuppliers()
+      ]);
+      // Convert API DTOs to frontend types
+      setGroups(groupsData.map(g => ({ id: g.id.toString(), name: g.name, color: g.color })));
+      // Convert supplier API data to frontend format
+      setSuppliers(suppliersData.map(s => ({
+        id: s.id.toString(),
+        name: s.name,
+        cui: s.taxNumber || '',
+        legalType: 'INDIVIDUAL' as const,
+        exploitationCode: '',
+        apiaCode: '',
+        hasSubsidy8: false,
+        bankName: '',
+        bankBranch: '',
+        iban: '',
+        type: s.type === 1 ? 'FARMER' as const : 'COOPERATIVE' as const,
+        groupId: s.supplierGroupId?.toString() || '',
+        address: s.address || '',
+        phone: s.phone || '',
+        status: s.isActive ? 'ACTIVE' as const : 'INACTIVE' as const
+      })));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Hiba történt az adatok betöltésekor');
+      console.error('Error loading data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredGroups = useMemo(() => {
     return groups.filter(g => 
@@ -87,41 +131,129 @@ const SupplierGroupManagement: React.FC = () => {
     setIsMemberModalOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    if (window.confirm('Biztosan törölni szeretnéd ezt a csoportot?')) {
-      setGroups(groups.filter(g => g.id !== id));
-      // Reassign suppliers to no group
-      setSuppliers(suppliers.map(s => s.groupId === id ? { ...s, groupId: '' } : s));
+  const handleImport = async () => {
+    if (!selectedFile) return;
+    
+    try {
+      setIsImporting(true);
+      const result = await supplierGroupsApi.importSupplierGroupsFromExcel(selectedFile);
+      setImportResult(result);
+      
+      // Reload data after successful import
+      if (result.success) {
+        setTimeout(() => {
+          loadData();
+          setIsImportModalOpen(false);
+          setSelectedFile(null);
+        }, 2000);
+      }
+    } catch (err) {
+      setImportResult({
+        success: false,
+        message: err instanceof Error ? err.message : 'Az importálás során hiba lépett fel',
+        groupsCreated: 0,
+        groupsUpdated: 0,
+        suppliersCreated: 0,
+        suppliersUpdated: 0,
+        associationsCreated: 0,
+        errors: [err instanceof Error ? err.message : 'Ismeretlen hiba']
+      });
+    } finally {
+      setIsImporting(false);
     }
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleDelete = async (id: string) => {
+    setCurrentGroup({ id });
+    setDeleteError(null);
+    setIsDeleteWarningOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!currentGroup.id) return;
+    
+    try {
+      setLoading(true);
+      await supplierGroupsApi.deleteSupplierGroup(parseInt(currentGroup.id));
+      setGroups(groups.filter(g => g.id !== currentGroup.id));
+      setIsDeleteWarningOpen(false);
+      setDeleteError(null);
+    } catch (err) {
+      // Parse the error message to check if it's a "in use" error
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      try {
+        const errorData = JSON.parse(errorMessage);
+        setDeleteError({
+          message: errorData.message || 'A csoport nem törölhető, mert használatban van.',
+          partnersCount: errorData.partnersCount
+        });
+      } catch {
+        setDeleteError({
+          message: 'A csoport nem törölhető, mert használatban van.'
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentGroup.name) return;
 
-    if (isEditing && currentGroup.id) {
-      setGroups(groups.map(g => g.id === currentGroup.id ? currentGroup as SupplierGroup : g));
-    } else {
-      const newGroup: SupplierGroup = {
-        ...currentGroup as SupplierGroup,
-        id: `gr-${Math.floor(Math.random() * 10000)}`
-      };
-      setGroups([...groups, newGroup]);
+    try {
+      setLoading(true);
+      if (isEditing && currentGroup.id) {
+        await supplierGroupsApi.updateSupplierGroup(parseInt(currentGroup.id), {
+          name: currentGroup.name,
+          color: currentGroup.color || COLOR_PRESETS[0].class
+        });
+        setGroups(groups.map(g => g.id === currentGroup.id ? currentGroup as SupplierGroup : g));
+      } else {
+        const newGroup = await supplierGroupsApi.createSupplierGroup({
+          name: currentGroup.name,
+          color: currentGroup.color || COLOR_PRESETS[0].class
+        });
+        setGroups([...groups, { id: newGroup.id.toString(), name: newGroup.name, color: newGroup.color }]);
+      }
+      setIsModalOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Hiba történt a mentés során');
+      console.error('Error saving group:', err);
+    } finally {
+      setLoading(false);
     }
-    setIsModalOpen(false);
   };
 
   // Logic for assigning/removing suppliers
-  const toggleMember = (supplierId: string, targetGroupId: string) => {
-    setSuppliers(prev => prev.map(s => {
-      if (s.id === supplierId) {
-        // If it's already in the group, remove it (empty string)
-        // Otherwise set to targetGroupId (this handles moving from another group too)
-        const newGroupId = s.groupId === targetGroupId ? '' : targetGroupId;
-        return { ...s, groupId: newGroupId };
+  const toggleMember = async (supplierId: string, targetGroupId: string) => {
+    if (memberUpdating) return;
+    if (!currentGroup.id) return;
+
+    const supplier = suppliers.find(s => s.id === supplierId);
+    if (!supplier) return;
+
+    try {
+      setMemberUpdating(true);
+      setError(null);
+
+      const groupId = Number(targetGroupId);
+      const partnerId = Number(supplierId);
+
+      if (supplier.groupId === targetGroupId) {
+        await supplierGroupsApi.removeSupplierGroupMember(groupId, partnerId);
+        setSuppliers(prev => prev.map(s => s.id === supplierId ? { ...s, groupId: '' } : s));
+        return;
       }
-      return s;
-    }));
+
+      await supplierGroupsApi.addSupplierGroupMember(groupId, partnerId);
+      setSuppliers(prev => prev.map(s => s.id === supplierId ? { ...s, groupId: targetGroupId } : s));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Hiba tortent a tagok frissitese kozben');
+      console.error('Error updating group members:', err);
+    } finally {
+      setMemberUpdating(false);
+    }
   };
 
   const currentGroupMembers = useMemo(() => {
@@ -144,7 +276,7 @@ const SupplierGroupManagement: React.FC = () => {
           <h2 className="text-xl font-bold text-slate-800">{t('sup.groups_title')}</h2>
           <p className="text-sm text-slate-500">{t('sup.groups_subtitle')}</p>
         </div>
-        <div className="flex items-center gap-3 w-full md:w-auto">
+        <div className="flex items-center gap-3 w-full md:w-auto flex-col md:flex-row">
           <div className="relative flex-1 md:w-64">
             <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input 
@@ -155,13 +287,34 @@ const SupplierGroupManagement: React.FC = () => {
               className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
             />
           </div>
-          <button 
-            onClick={handleAddNew}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl text-sm font-bold flex items-center transition shadow-lg shadow-blue-600/20 whitespace-nowrap"
-          >
-            <Plus size={18} className="mr-2" />
-            {t('sup.groups_new_btn')}
-          </button>
+          <div className="flex gap-2 w-full md:w-auto">
+            <button 
+              onClick={() => setIsInfoModalOpen(true)}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-sm font-bold flex items-center transition"
+              title="Excel import információ"
+            >
+              <HelpCircle size={16} className="mr-1" />
+              Info
+            </button>
+            <button 
+              onClick={() => {
+                setIsImportModalOpen(true);
+                setImportResult(null);
+                setSelectedFile(null);
+              }}
+              className="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-xl text-sm font-bold flex items-center transition shadow-lg shadow-green-600/20 whitespace-nowrap"
+            >
+              <Upload size={18} className="mr-2" />
+              Import Excel
+            </button>
+            <button 
+              onClick={handleAddNew}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl text-sm font-bold flex items-center transition shadow-lg shadow-blue-600/20 whitespace-nowrap"
+            >
+              <Plus size={18} className="mr-2" />
+              {t('sup.groups_new_btn')}
+            </button>
+          </div>
         </div>
       </div>
 
@@ -190,13 +343,13 @@ const SupplierGroupManagement: React.FC = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className={`w-3 h-3 rounded-full ${group.color.split(' ')[0]}`}></div>
+                        <div className={`w-3 h-3 rounded-full ${group.color?.split(' ')[0] || 'bg-slate-100'}`}></div>
                         <div className="font-bold text-slate-800 text-base">{group.name}</div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-tight ${group.color}`}>
-                        {group.color.split(' ')[1].replace('text-', '').split('-')[0]}
+                        {group.color?.split(' ')[1]?.replace('text-', '').split('-')[0] || 'szürke'}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -257,7 +410,7 @@ const SupplierGroupManagement: React.FC = () => {
       {/* Member Management Modal */}
       {isMemberModalOpen && currentGroup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col h-[calc(100%-15px)]">
             <div className="bg-slate-800 p-5 text-white flex justify-between items-center">
                <div>
                   <h3 className="font-bold text-lg flex items-center">
@@ -297,7 +450,8 @@ const SupplierGroupManagement: React.FC = () => {
                       </div>
                       <button 
                         onClick={() => toggleMember(s.id, currentGroup.id!)}
-                        className="p-1.5 text-slate-300 hover:text-red-500 transition"
+                        disabled={memberUpdating}
+                        className="p-1.5 text-slate-300 hover:text-red-500 transition disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         <X size={16} />
                       </button>
@@ -342,7 +496,8 @@ const SupplierGroupManagement: React.FC = () => {
                       <button 
                         key={s.id}
                         onClick={() => toggleMember(s.id, currentGroup.id!)}
-                        className="w-full text-left flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-blue-300 transition group"
+                        disabled={memberUpdating}
+                        className="w-full text-left flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-blue-300 transition group disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-500">
@@ -451,6 +606,335 @@ const SupplierGroupManagement: React.FC = () => {
                  </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Warning Dialog */}
+      {isDeleteWarningOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="bg-red-50 p-5 border-b border-red-100 flex justify-between items-center">
+               <h3 className="font-bold text-lg text-red-800 flex items-center">
+                 <AlertCircle className="mr-3 text-red-600" size={20} />
+                 Csoport törlése
+               </h3>
+               <button 
+                 onClick={() => {
+                   setIsDeleteWarningOpen(false);
+                   setDeleteError(null);
+                 }} 
+                 className="hover:bg-red-100 text-red-500 p-1.5 rounded-lg transition"
+               >
+                 <X size={20}/>
+               </button>
+            </div>
+            
+            <div className="p-6">
+              {deleteError ? (
+                <div className="space-y-4">
+                  <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
+                    <AlertCircle className="text-red-600 flex-shrink-0 mt-0.5" size={20} />
+                    <div>
+                      <p className="text-sm font-bold text-red-800 mb-1">A csoport nem törölhető!</p>
+                      <p className="text-sm text-red-700">{deleteError.message}</p>
+                      {deleteError.partnersCount && (
+                        <p className="text-sm text-red-700 mt-2">
+                          Jelenleg <strong>{deleteError.partnersCount}</strong> beszállító tartozik ehhez a csoporthoz.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-sm text-slate-600">
+                    A csoport törléséhez először mozgasd át vagy töröld a beszállítókat, akik ebben a csoportban vannak.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-slate-700">
+                  Biztosan törölni szeretnéd ezt a csoportot? Ez a művelet nem vonható vissza.
+                </p>
+              )}
+            </div>
+
+            <div className="bg-slate-50 p-4 border-t border-slate-100 flex justify-end gap-3">
+              <button 
+                onClick={() => {
+                  setIsDeleteWarningOpen(false);
+                  setDeleteError(null);
+                }}
+                className="px-6 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold text-sm transition"
+              >
+                {deleteError ? 'Bezárás' : 'Mégse'}
+              </button>
+              {!deleteError && (
+                <button 
+                  onClick={confirmDelete}
+                  disabled={loading}
+                  className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-sm transition shadow-lg disabled:opacity-50"
+                >
+                  {loading ? 'Törlés...' : 'Törlés'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Modal */}
+      {isImportModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="bg-green-50 p-5 border-b border-green-100 flex justify-between items-center">
+               <h3 className="font-bold text-lg text-green-800 flex items-center">
+                 <Upload className="mr-3 text-green-600" size={20} />
+                 Excel Import
+               </h3>
+               <button onClick={() => {
+                 setIsImportModalOpen(false);
+                 setImportResult(null);
+                 setSelectedFile(null);
+               }} className="hover:bg-green-100 text-green-500 p-1.5 rounded-lg transition"><X size={20}/></button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              {!importResult ? (
+                <>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-3">Excel Fájl Kiválasztása</label>
+                    <div className="relative">
+                      <input 
+                        type="file" 
+                        accept=".xlsx,.xls"
+                        onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                        className="w-full"
+                      />
+                    </div>
+                    {selectedFile && (
+                      <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-3">
+                        <FileJson className="text-blue-600 flex-shrink-0 mt-0.5" size={18} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-blue-900 break-all">{selectedFile.name}</p>
+                          <p className="text-xs text-blue-600 mt-1">{(selectedFile.size / 1024).toFixed(2)} KB</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 flex items-start gap-3">
+                    <AlertCircle className="text-amber-600 flex-shrink-0 mt-0.5" size={18} />
+                    <div>
+                      <p className="text-sm font-bold text-amber-900 mb-1">Formátum Információ</p>
+                      <p className="text-xs text-amber-700">Az Excel-nek különálló füleket kell tartalmaznia minden gyűjtőponthoz. Az 1-5. sorok fejléc, a 6. sortól adatok. Az B oszlop: Név (kötelező), C: CNP/UI, D: Üzem. kód.</p>
+                      <button 
+                        onClick={() => {
+                          setIsImportModalOpen(false);
+                          setIsInfoModalOpen(true);
+                        }}
+                        className="text-amber-700 text-xs font-bold mt-2 hover:underline"
+                      >
+                        Részletes információ →
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        setIsImportModalOpen(false);
+                        setSelectedFile(null);
+                      }}
+                      className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl transition"
+                    >
+                      Mégse
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={handleImport}
+                      disabled={!selectedFile || isImporting}
+                      className="flex-1 py-3 bg-green-600 hover:bg-green-700 disabled:bg-green-400 text-white font-bold rounded-xl shadow-lg shadow-green-600/30 transition flex items-center justify-center disabled:cursor-not-allowed"
+                    >
+                      {isImporting ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                          Importálás...
+                        </>
+                      ) : (
+                        <>
+                          <Upload size={18} className="mr-2" />
+                          Importálás
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-4">
+                  {importResult.success ? (
+                    <>
+                      <div className="flex items-center justify-center">
+                        <Check className="text-green-600 animate-pulse" size={48} />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-lg font-bold text-green-700 mb-4">Az import sikeres!</p>
+                        <div className="space-y-2 bg-slate-50 p-4 rounded-xl text-left">
+                          <div className="flex justify-between items-center py-2 border-b border-slate-200">
+                            <span className="text-sm text-slate-600">Létrehozott csoportok:</span>
+                            <span className="font-bold text-slate-800">{importResult.groupsCreated}</span>
+                          </div>
+                          <div className="flex justify-between items-center py-2 border-b border-slate-200">
+                            <span className="text-sm text-slate-600">Frissített csoportok:</span>
+                            <span className="font-bold text-slate-800">{importResult.groupsUpdated}</span>
+                          </div>
+                          <div className="flex justify-between items-center py-2 border-b border-slate-200">
+                            <span className="text-sm text-slate-600">Létrehozott beszállítók:</span>
+                            <span className="font-bold text-slate-800">{importResult.suppliersCreated}</span>
+                          </div>
+                          <div className="flex justify-between items-center py-2 border-b border-slate-200">
+                            <span className="text-sm text-slate-600">Frissített beszállítók:</span>
+                            <span className="font-bold text-slate-800">{importResult.suppliersUpdated}</span>
+                          </div>
+                          <div className="flex justify-between items-center py-2">
+                            <span className="text-sm text-slate-600">Kapcsolatok létrehozva:</span>
+                            <span className="font-bold text-slate-800">{importResult.associationsCreated}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-xs text-slate-500 text-center">Az oldal automatikusan frissül...</p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex items-center justify-center">
+                        <AlertCircle className="text-red-600" size={48} />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-lg font-bold text-red-700 mb-4">Az import sikertelen</p>
+                        <p className="text-sm text-red-600 mb-4 break-words">{importResult.message}</p>
+                        
+                        {importResult.errors.length > 0 && (
+                          <div className="bg-red-50 p-3 rounded-xl text-left mb-4">
+                            <p className="text-xs font-bold text-red-700 mb-2">Hibák:</p>
+                            <div className="space-y-1 max-h-32 overflow-y-auto text-xs text-red-600">
+                              {importResult.errors.map((err, idx) => (
+                                <div key={idx} className="truncate">• {err}</div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <button 
+                        onClick={() => {
+                          setIsImportModalOpen(false);
+                          setImportResult(null);
+                          setSelectedFile(null);
+                        }}
+                        className="w-full py-3 bg-slate-800 text-white font-bold rounded-xl hover:bg-slate-700 transition"
+                      >
+                        Bezárás
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Info Modal */}
+      {isInfoModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[80vh] flex flex-col">
+            <div className="bg-blue-50 p-5 border-b border-blue-100 flex justify-between items-center">
+               <h3 className="font-bold text-lg text-blue-800 flex items-center">
+                 <Info className="mr-3 text-blue-600" size={20} />
+                 Excel Import Formátum Útmutató
+               </h3>
+               <button onClick={() => setIsInfoModalOpen(false)} className="hover:bg-blue-100 text-blue-500 p-1.5 rounded-lg transition"><X size={20}/></button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto flex-1 space-y-6">
+              <div>
+                <h4 className="font-bold text-slate-800 mb-3 flex items-center">
+                  <FileJson className="mr-2 text-blue-600" size={18} />
+                  Fájl Szerkezete
+                </h4>
+                <div className="bg-slate-50 p-4 rounded-xl text-sm space-y-2 text-slate-700 font-mono text-xs">
+                  <p>📊 <strong>Minden fül</strong> = Egy gyűjtőpont (pl. "Budapest", "Debrecen")</p>
+                  <p>⏭️  Az <strong>"total"</strong> fül <strong>kihagyódik</strong> az importálásból</p>
+                  <p>📍 1-5. sorok: Fejléc / Üres (figyelmen kívül hagyott)</p>
+                  <p>📍 6. sor és után: Beszállítók adatai</p>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="font-bold text-slate-800 mb-3">Oszlopok</h4>
+                <div className="space-y-2">
+                  <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                    <p className="text-sm font-bold text-blue-900">B oszlop: <span className="text-red-600">Név (kötelező)</span></p>
+                    <p className="text-xs text-blue-700">A beszállító teljes neve</p>
+                  </div>
+                  <div className="bg-amber-50 p-3 rounded-lg border border-amber-200">
+                    <p className="text-sm font-bold text-amber-900">C oszlop: CNP/UI (opcionális)</p>
+                    <p className="text-xs text-amber-700">Adóazonosító szám</p>
+                  </div>
+                  <div className="bg-emerald-50 p-3 rounded-lg border border-emerald-200">
+                    <p className="text-sm font-bold text-emerald-900">D oszlop: Üzem. Kód (opcionális)</p>
+                    <p className="text-xs text-emerald-700">Üzemeltetési / Kihasználási kód</p>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="font-bold text-slate-800 mb-3">Például (Budapest fül):</h4>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs border-collapse border border-slate-300">
+                    <thead>
+                      <tr className="bg-slate-200">
+                        <th className="border border-slate-300 p-2">A</th>
+                        <th className="border border-slate-300 p-2">B - Név</th>
+                        <th className="border border-slate-300 p-2">C - CNP/UI</th>
+                        <th className="border border-slate-300 p-2">D - Üzem.Kód</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="bg-slate-50">
+                        <td className="border border-slate-300 p-2">1-5</td>
+                        <td className="border border-slate-300 p-2">[Fejléc]</td>
+                        <td className="border border-slate-300 p-2"></td>
+                        <td className="border border-slate-300 p-2"></td>
+                      </tr>
+                      <tr>
+                        <td className="border border-slate-300 p-2">6</td>
+                        <td className="border border-slate-300 p-2 font-bold">Agro Kft.</td>
+                        <td className="border border-slate-300 p-2">12345678901</td>
+                        <td className="border border-slate-300 p-2">EXP-001</td>
+                      </tr>
+                      <tr>
+                        <td className="border border-slate-300 p-2">7</td>
+                        <td className="border border-slate-300 p-2 font-bold">Bio Farm Zrt.</td>
+                        <td className="border border-slate-300 p-2">98765432101</td>
+                        <td className="border border-slate-300 p-2">EXP-002</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div className="bg-green-50 p-4 rounded-xl border border-green-200">
+                <p className="text-sm font-bold text-green-900 mb-2">✓ A duplikáció megelőzése</p>
+                <p className="text-xs text-green-700">A beszállítók a <strong>CNP/UI szám</strong> alapján kerülnek azonosításra. Ez azt jelenti, hogy ugyanazz a CNP/UI nem vezethet duplikált bejegyzésekhez - a meglévő beszállító frissítésre kerül.</p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 p-4 border-t border-slate-100 flex justify-end">
+              <button 
+                onClick={() => setIsInfoModalOpen(false)}
+                className="px-6 py-2 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition"
+              >
+                Rendben
+              </button>
+            </div>
           </div>
         </div>
       )}
