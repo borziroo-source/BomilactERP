@@ -1,5 +1,6 @@
-const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
-const BASE_URL = `${API_BASE}/api/Partners`;
+import axiosClient from './axiosClient';
+
+const BASE_URL = '/Partners';
 
 type ApiPartnerDto = {
   id: number;
@@ -44,70 +45,40 @@ export type ImportSuppliersResult = {
   errors: Array<{ rowNumber: number; message: string }>;
 };
 
-const ensureOk = async (response: Response) => {
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `HTTP ${response.status}`);
-  }
-};
-
-const parseJson = async <T>(response: Response): Promise<T> => {
-  const contentType = response.headers.get('content-type') || '';
-  if (!contentType.includes('application/json')) {
-    const text = await response.text();
-    throw new Error(`Nem JSON válasz érkezett az API-tól. Ellenőrizd a VITE_API_URL beállítást. Válasz (részlet): ${text.substring(0, 200)}`);
-  }
-  return (await response.json()) as T;
-};
+// Axios automatikusan kezeli a JSON parse-olást és hibakezelést
 
 export const fetchSuppliers = async (): Promise<ApiPartnerDto[]> => {
-  const res = await fetch(BASE_URL, { cache: 'no-store' });
-  await ensureOk(res);
-  const data = await parseJson<ApiPartnerDto[]>(res);
+  const { data } = await axiosClient.get<ApiPartnerDto[]>(BASE_URL);
   // Szűrjük csak a beszállítókat (type = 1 vagy 2)
   return data.filter(p => p.type === 1 || p.type === 2);
 };
 
 export const fetchSupplierById = async (id: number): Promise<ApiPartnerDto> => {
-  const res = await fetch(`${BASE_URL}/${id}`, { cache: 'no-store' });
-  await ensureOk(res);
-  return await parseJson<ApiPartnerDto>(res);
+  const { data } = await axiosClient.get<ApiPartnerDto>(`${BASE_URL}/${id}`);
+  return data;
 };
 
 export const createSupplier = async (data: CreateUpdatePartnerDto): Promise<ApiPartnerDto> => {
-  const res = await fetch(BASE_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
-  await ensureOk(res);
-  return await parseJson<ApiPartnerDto>(res);
+  const { data: result } = await axiosClient.post<ApiPartnerDto>(BASE_URL, data);
+  return result;
 };
 
 export const updateSupplier = async (id: number, data: CreateUpdatePartnerDto): Promise<void> => {
-  const res = await fetch(`${BASE_URL}/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
-  await ensureOk(res);
+  await axiosClient.put(`${BASE_URL}/${id}`, data);
 };
 
 export const deleteSupplier = async (id: number): Promise<void> => {
-  const res = await fetch(`${BASE_URL}/${id}`, {
-    method: 'DELETE',
-  });
-  await ensureOk(res);
+  await axiosClient.delete(`${BASE_URL}/${id}`);
 };
 
 export const importSuppliers = async (file: File): Promise<ImportSuppliersResult> => {
   const formData = new FormData();
   formData.append('file', file);
 
-  const res = await fetch(`${BASE_URL}/import-suppliers`, {
-    method: 'POST',
-    body: formData,
+  const { data } = await axiosClient.post<ImportSuppliersResult>(`${BASE_URL}/import-suppliers`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
   });
-  await ensureOk(res);
-  return await parseJson<ImportSuppliersResult>(res);
+  return data;
 };

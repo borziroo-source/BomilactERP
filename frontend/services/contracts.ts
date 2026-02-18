@@ -1,7 +1,7 @@
 import { Contract } from '../types';
+import axiosClient from './axiosClient';
 
-const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
-const BASE_URL = `${API_BASE}/api/Contracts`;
+const BASE_URL = '/Contracts';
 
 type ApiContractDto = {
   id: number;
@@ -67,64 +67,28 @@ const mapToApi = (contract: Partial<Contract>) => ({
   notes: contract.notes ?? null
 });
 
-const ensureOk = async (response: Response) => {
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `HTTP ${response.status}`);
-  }
-};
-
-const parseJson = async <T>(response: Response): Promise<T> => {
-  const contentType = response.headers.get('content-type') || '';
-  if (!contentType.includes('application/json')) {
-    const text = await response.text();
-    throw new Error(`Nem JSON válasz érkezett az API-tól. Ellenőrizd a VITE_API_URL beállítást. Válasz (részlet): ${text.substring(0, 200)}`);
-  }
-  return (await response.json()) as T;
-};
+// Axios automatikusan kezeli a JSON parse-olást és hibakezelést
 
 export const fetchContracts = async (): Promise<Contract[]> => {
-  const res = await fetch(BASE_URL, { cache: 'no-store' });
-  await ensureOk(res);
-  const data = await parseJson<ApiContractDto[]>(res);
+  const { data } = await axiosClient.get<ApiContractDto[]>(BASE_URL);
   return data.map(mapFromApi);
 };
 
 export const fetchContract = async (id: number): Promise<Contract> => {
-  const res = await fetch(`${BASE_URL}/${id}`, { cache: 'no-store' });
-  await ensureOk(res);
-  const dto = await parseJson<ApiContractDto>(res);
-  return mapFromApi(dto);
+  const { data } = await axiosClient.get<ApiContractDto>(`${BASE_URL}/${id}`);
+  return mapFromApi(data);
 };
 
 export const updateContract = async (id: number, contract: Partial<Contract>): Promise<Contract> => {
-  const res = await fetch(`${BASE_URL}/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(mapToApi(contract))
-  });
-
-  if (res.status !== 204) {
-    await ensureOk(res);
-  }
-
+  await axiosClient.put(`${BASE_URL}/${id}`, mapToApi(contract));
   return fetchContract(id);
 };
 
 export const createContract = async (contract: Partial<Contract>): Promise<Contract> => {
-  const res = await fetch(BASE_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(mapToApi(contract))
-  });
-  await ensureOk(res);
-  const dto = await parseJson<ApiContractDto>(res);
-  return mapFromApi(dto);
+  const { data } = await axiosClient.post<ApiContractDto>(BASE_URL, mapToApi(contract));
+  return mapFromApi(data);
 };
 
 export const deleteContract = async (id: number): Promise<void> => {
-  const res = await fetch(`${BASE_URL}/${id}`, { method: 'DELETE' });
-  if (res.status !== 204) {
-    await ensureOk(res);
-  }
+  await axiosClient.delete(`${BASE_URL}/${id}`);
 };

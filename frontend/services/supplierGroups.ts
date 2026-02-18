@@ -1,5 +1,6 @@
-const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
-const BASE_URL = `${API_BASE}/api/SupplierGroups`;
+import axiosClient from './axiosClient';
+
+const BASE_URL = '/SupplierGroups';
 
 export type SupplierGroupDto = {
   id: number;
@@ -28,80 +29,42 @@ export type SupplierGroupMemberDto = {
   supplierGroupId?: number | null;
 };
 
-const ensureOk = async (response: Response) => {
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || `HTTP ${response.status}`);
-  }
-};
-
-const parseJson = async <T>(response: Response): Promise<T> => {
-  const contentType = response.headers.get('content-type') || '';
-  if (!contentType.includes('application/json')) {
-    const text = await response.text();
-    throw new Error(`Nem JSON válasz érkezett az API-tól. Ellenőrizd a VITE_API_URL beállítást. Válasz (részlet): ${text.substring(0, 200)}`);
-  }
-  return (await response.json()) as T;
-};
+// Axios automatikusan kezeli a JSON parse-olást és hibakezelést
 
 export const fetchSupplierGroups = async (): Promise<SupplierGroupDto[]> => {
-  const res = await fetch(BASE_URL, { cache: 'no-store' });
-  await ensureOk(res);
-  return await parseJson<SupplierGroupDto[]>(res);
+  const { data } = await axiosClient.get<SupplierGroupDto[]>(BASE_URL);
+  return data;
 };
 
 export const fetchSupplierGroupById = async (id: number): Promise<SupplierGroupDto> => {
-  const res = await fetch(`${BASE_URL}/${id}`, { cache: 'no-store' });
-  await ensureOk(res);
-  return await parseJson<SupplierGroupDto>(res);
+  const { data } = await axiosClient.get<SupplierGroupDto>(`${BASE_URL}/${id}`);
+  return data;
 };
 
 export const createSupplierGroup = async (data: CreateUpdateSupplierGroupDto): Promise<SupplierGroupDto> => {
-  const res = await fetch(BASE_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
-  await ensureOk(res);
-  return await parseJson<SupplierGroupDto>(res);
+  const { data: result } = await axiosClient.post<SupplierGroupDto>(BASE_URL, data);
+  return result;
 };
 
 export const updateSupplierGroup = async (id: number, data: CreateUpdateSupplierGroupDto): Promise<void> => {
-  const res = await fetch(`${BASE_URL}/${id}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
-  await ensureOk(res);
+  await axiosClient.put(`${BASE_URL}/${id}`, data);
 };
 
 export const deleteSupplierGroup = async (id: number): Promise<void> => {
-  const res = await fetch(`${BASE_URL}/${id}`, {
-    method: 'DELETE',
-  });
-  await ensureOk(res);
+  await axiosClient.delete(`${BASE_URL}/${id}`);
 };
 
 export const fetchSupplierGroupMembers = async (groupId: number): Promise<SupplierGroupMemberDto[]> => {
-  const res = await fetch(`${BASE_URL}/${groupId}/members`, { cache: 'no-store' });
-  await ensureOk(res);
-  return await parseJson<SupplierGroupMemberDto[]>(res);
+  const { data } = await axiosClient.get<SupplierGroupMemberDto[]>(`${BASE_URL}/${groupId}/members`);
+  return data;
 };
 
 export const addSupplierGroupMember = async (groupId: number, partnerId: number): Promise<void> => {
-  const res = await fetch(`${BASE_URL}/${groupId}/members`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ partnerId }),
-  });
-  await ensureOk(res);
+  await axiosClient.post(`${BASE_URL}/${groupId}/members`, { partnerId });
 };
 
 export const removeSupplierGroupMember = async (groupId: number, partnerId: number): Promise<void> => {
-  const res = await fetch(`${BASE_URL}/${groupId}/members/${partnerId}`, {
-    method: 'DELETE',
-  });
-  await ensureOk(res);
+  await axiosClient.delete(`${BASE_URL}/${groupId}/members/${partnerId}`);
 };
 
 export type ImportResult = {
@@ -119,10 +82,10 @@ export const importSupplierGroupsFromExcel = async (file: File): Promise<ImportR
   const formData = new FormData();
   formData.append('file', file);
   
-  const res = await fetch(`${BASE_URL}/import`, {
-    method: 'POST',
-    body: formData,
+  const { data } = await axiosClient.post<ImportResult>(`${BASE_URL}/import`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
   });
-  await ensureOk(res);
-  return await parseJson<ImportResult>(res);
+  return data;
 };
