@@ -46,6 +46,7 @@ const SupplierGroupManagement: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<{ message: string; partnersCount?: number } | null>(null);
+  const [memberUpdating, setMemberUpdating] = useState(false);
   
   // Selection state for member management
   const [memberSearch, setMemberSearch] = useState('');
@@ -181,16 +182,34 @@ const SupplierGroupManagement: React.FC = () => {
   };
 
   // Logic for assigning/removing suppliers
-  const toggleMember = (supplierId: string, targetGroupId: string) => {
-    setSuppliers(prev => prev.map(s => {
-      if (s.id === supplierId) {
-        // If it's already in the group, remove it (empty string)
-        // Otherwise set to targetGroupId (this handles moving from another group too)
-        const newGroupId = s.groupId === targetGroupId ? '' : targetGroupId;
-        return { ...s, groupId: newGroupId };
+  const toggleMember = async (supplierId: string, targetGroupId: string) => {
+    if (memberUpdating) return;
+    if (!currentGroup.id) return;
+
+    const supplier = suppliers.find(s => s.id === supplierId);
+    if (!supplier) return;
+
+    try {
+      setMemberUpdating(true);
+      setError(null);
+
+      const groupId = Number(targetGroupId);
+      const partnerId = Number(supplierId);
+
+      if (supplier.groupId === targetGroupId) {
+        await supplierGroupsApi.removeSupplierGroupMember(groupId, partnerId);
+        setSuppliers(prev => prev.map(s => s.id === supplierId ? { ...s, groupId: '' } : s));
+        return;
       }
-      return s;
-    }));
+
+      await supplierGroupsApi.addSupplierGroupMember(groupId, partnerId);
+      setSuppliers(prev => prev.map(s => s.id === supplierId ? { ...s, groupId: targetGroupId } : s));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Hiba tortent a tagok frissitese kozben');
+      console.error('Error updating group members:', err);
+    } finally {
+      setMemberUpdating(false);
+    }
   };
 
   const currentGroupMembers = useMemo(() => {
@@ -326,7 +345,7 @@ const SupplierGroupManagement: React.FC = () => {
       {/* Member Management Modal */}
       {isMemberModalOpen && currentGroup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col h-[calc(100%-15px)]">
             <div className="bg-slate-800 p-5 text-white flex justify-between items-center">
                <div>
                   <h3 className="font-bold text-lg flex items-center">
@@ -366,7 +385,8 @@ const SupplierGroupManagement: React.FC = () => {
                       </div>
                       <button 
                         onClick={() => toggleMember(s.id, currentGroup.id!)}
-                        className="p-1.5 text-slate-300 hover:text-red-500 transition"
+                        disabled={memberUpdating}
+                        className="p-1.5 text-slate-300 hover:text-red-500 transition disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         <X size={16} />
                       </button>
@@ -411,7 +431,8 @@ const SupplierGroupManagement: React.FC = () => {
                       <button 
                         key={s.id}
                         onClick={() => toggleMember(s.id, currentGroup.id!)}
-                        className="w-full text-left flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-blue-300 transition group"
+                        disabled={memberUpdating}
+                        className="w-full text-left flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-blue-300 transition group disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-500">

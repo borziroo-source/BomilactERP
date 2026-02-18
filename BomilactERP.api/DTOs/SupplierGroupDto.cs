@@ -18,3 +18,8 @@ public class UpdateSupplierGroupDto
     public string Name { get; set; } = string.Empty;
     public string Color { get; set; } = string.Empty;
 }
+
+public class UpdateSupplierGroupMemberDto
+{
+    public int PartnerId { get; set; }
+}

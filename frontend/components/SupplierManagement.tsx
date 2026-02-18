@@ -20,7 +20,8 @@ import {
   Layers,
   Settings2,
   ChevronRight,
-  Info
+  Info,
+  RotateCw
 } from 'lucide-react';
 import { Supplier, SupplierType, SupplierGroup, LegalType } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -293,6 +294,14 @@ const SupplierManagement: React.FC = () => {
               className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
             />
           </div>
+          <button
+            onClick={loadSuppliers}
+            disabled={isLoading}
+            className="px-3 py-2.5 rounded-xl text-sm font-bold flex items-center transition border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed"
+            title="Frissites"
+          >
+            <RotateCw size={18} className={isLoading ? 'animate-spin' : ''} />
+          </button>
           <button 
             onClick={handleAddNew}
             className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center transition shadow-lg shadow-blue-600/20"

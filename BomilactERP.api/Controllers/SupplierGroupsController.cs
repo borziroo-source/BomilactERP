@@ -172,4 +172,116 @@ public class SupplierGroupsController : ControllerBase
             return StatusCode(500, new { message = "An error occurred while processing your request" });
         }
     }
+
+    [HttpGet("{id}/members")]
+    public async Task<ActionResult<IEnumerable<PartnerDto>>> GetMembers(int id)
+    {
+        try
+        {
+            _logger.LogInformation("Fetching members for supplier group ID {GroupId}", id);
+
+            var groupExists = await _repository.GetByIdAsync(id);
+            if (groupExists == null)
+            {
+                _logger.LogWarning("Supplier group with ID {GroupId} not found for members", id);
+                return NotFound();
+            }
+
+            var members = await _context.Partners
+                .Where(p => p.SupplierGroupId == id)
+                .ToListAsync();
+
+            var dtos = members.Select(p => new PartnerDto
+            {
+                Id = p.Id,
+                Name = p.Name,
+                TaxNumber = p.TaxNumber,
+                Address = p.Address,
+                City = p.City,
+                PostalCode = p.PostalCode,
+                Country = p.Country,
+                ContactPerson = p.ContactPerson,
+                Email = p.Email,
+                Phone = p.Phone,
+                Type = (int)p.Type,
+                IsActive = p.IsActive,
+                SupplierGroupId = p.SupplierGroupId
+            });
+
+            _logger.LogInformation("Successfully fetched {Count} members for supplier group ID {GroupId}", dtos.Count(), id);
+            return Ok(dtos);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "An error occurred while fetching members for supplier group ID {GroupId}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    [HttpPost("{id}/members")]
+    public async Task<IActionResult> AddMember(int id, UpdateSupplierGroupMemberDto dto)
+    {
+        try
+        {
+            _logger.LogInformation("Adding partner ID {PartnerId} to supplier group ID {GroupId}", dto.PartnerId, id);
+
+            var groupExists = await _repository.GetByIdAsync(id);
+            if (groupExists == null)
+            {
+                _logger.LogWarning("Supplier group with ID {GroupId} not found for adding member", id);
+                return NotFound();
+            }
+
+            var partner = await _context.Partners.FirstOrDefaultAsync(p => p.Id == dto.PartnerId);
+            if (partner == null)
+            {
+                _logger.LogWarning("Partner with ID {PartnerId} not found for adding to group", dto.PartnerId);
+                return NotFound();
+            }
+
+            partner.SupplierGroupId = id;
+            partner.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "An error occurred while adding partner to supplier group ID {GroupId}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    [HttpDelete("{id}/members/{partnerId}")]
+    public async Task<IActionResult> RemoveMember(int id, int partnerId)
+    {
+        try
+        {
+            _logger.LogInformation("Removing partner ID {PartnerId} from supplier group ID {GroupId}", partnerId, id);
+
+            var partner = await _context.Partners.FirstOrDefaultAsync(p => p.Id == partnerId);
+            if (partner == null)
+            {
+                _logger.LogWarning("Partner with ID {PartnerId} not found for removal", partnerId);
+                return NotFound();
+            }
+
+            if (partner.SupplierGroupId != id)
+            {
+                _logger.LogWarning("Partner ID {PartnerId} is not in supplier group ID {GroupId}", partnerId, id);
+                return BadRequest(new { message = "A beszallito nem ehhez a csoporthoz tartozik." });
+            }
+
+            partner.SupplierGroupId = null;
+            partner.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "An error occurred while removing partner from supplier group ID {GroupId}", id);
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
 }

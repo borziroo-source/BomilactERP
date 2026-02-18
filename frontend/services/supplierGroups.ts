@@ -12,6 +12,22 @@ export type CreateUpdateSupplierGroupDto = {
   color: string;
 };
 
+export type SupplierGroupMemberDto = {
+  id: number;
+  name: string;
+  taxNumber?: string | null;
+  address?: string | null;
+  city?: string | null;
+  postalCode?: string | null;
+  country?: string | null;
+  contactPerson?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  type: number;
+  isActive: boolean;
+  supplierGroupId?: number | null;
+};
+
 const ensureOk = async (response: Response) => {
   if (!response.ok) {
     const text = await response.text();
@@ -61,6 +77,28 @@ export const updateSupplierGroup = async (id: number, data: CreateUpdateSupplier
 
 export const deleteSupplierGroup = async (id: number): Promise<void> => {
   const res = await fetch(`${BASE_URL}/${id}`, {
+    method: 'DELETE',
+  });
+  await ensureOk(res);
+};
+
+export const fetchSupplierGroupMembers = async (groupId: number): Promise<SupplierGroupMemberDto[]> => {
+  const res = await fetch(`${BASE_URL}/${groupId}/members`, { cache: 'no-store' });
+  await ensureOk(res);
+  return await parseJson<SupplierGroupMemberDto[]>(res);
+};
+
+export const addSupplierGroupMember = async (groupId: number, partnerId: number): Promise<void> => {
+  const res = await fetch(`${BASE_URL}/${groupId}/members`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ partnerId }),
+  });
+  await ensureOk(res);
+};
+
+export const removeSupplierGroupMember = async (groupId: number, partnerId: number): Promise<void> => {
+  const res = await fetch(`${BASE_URL}/${groupId}/members/${partnerId}`, {
     method: 'DELETE',
   });
   await ensureOk(res);
