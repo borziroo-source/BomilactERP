@@ -40,7 +40,8 @@ public class SupplierGroupsController : ControllerBase
             {
                 Id = g.Id,
                 Name = g.Name,
-                Color = g.Color
+                Color = g.Color,
+                MemberCount = _context.Partners.Count(p => p.SupplierGroupId == g.Id)
             });
             _logger.LogInformation("Successfully fetched {Count} supplier groups", dtos.Count());
             return Ok(dtos);
@@ -48,6 +49,83 @@ public class SupplierGroupsController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "An error occurred while fetching supplier groups");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
+    [HttpGet("paginated/list")]
+    public async Task<ActionResult<PaginatedResponseDto<SupplierGroupDto>>> GetPaginated([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20, [FromQuery] string? searchTerm = null, [FromQuery] string? sortBy = "Name", [FromQuery] bool sortDescending = false)
+    {
+        try
+        {
+            _logger.LogInformation("Fetching paginated supplier groups - Page: {PageNumber}, Size: {PageSize}, Search: {SearchTerm}", pageNumber, pageSize, searchTerm);
+            
+            // Validate pagination parameters
+            if (pageNumber < 1) pageNumber = 1;
+            if (pageSize < 1 || pageSize > 100) pageSize = 20;
+
+            // Get all groups with member counts
+            var groups = await _repository.GetAllAsync();
+            
+            var groupsWithCounts = groups.Select(g => new
+            {
+                Group = g,
+                MemberCount = _context.Partners.Count(p => p.SupplierGroupId == g.Id)
+            }).AsEnumerable();
+
+            // Apply search filter
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                var search = searchTerm.ToLower();
+                groupsWithCounts = groupsWithCounts.Where(x =>
+                    x.Group.Name.ToLower().Contains(search) ||
+                    x.Group.Color.ToLower().Contains(search)
+                );
+            }
+
+            // Apply sorting
+            groupsWithCounts = sortBy switch
+            {
+                "Color" => sortDescending 
+                    ? groupsWithCounts.OrderByDescending(x => x.Group.Color) 
+                    : groupsWithCounts.OrderBy(x => x.Group.Color),
+                "MemberCount" => sortDescending 
+                    ? groupsWithCounts.OrderByDescending(x => x.MemberCount) 
+                    : groupsWithCounts.OrderBy(x => x.MemberCount),
+                _ => sortDescending 
+                    ? groupsWithCounts.OrderByDescending(x => x.Group.Name) 
+                    : groupsWithCounts.OrderBy(x => x.Group.Name)
+            };
+
+            var totalCount = groupsWithCounts.Count();
+
+            // Apply pagination
+            var items = groupsWithCounts
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .Select(x => new SupplierGroupDto
+                {
+                    Id = x.Group.Id,
+                    Name = x.Group.Name,
+                    Color = x.Group.Color,
+                    MemberCount = x.MemberCount
+                })
+                .ToList();
+
+            var response = new PaginatedResponseDto<SupplierGroupDto>
+            {
+                Items = items,
+                TotalCount = totalCount,
+                PageNumber = pageNumber,
+                PageSize = pageSize
+            };
+
+            _logger.LogInformation("Successfully fetched paginated supplier groups - Total: {TotalCount}, Returned: {ItemCount}", totalCount, items.Count);
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "An error occurred while fetching paginated supplier groups");
             return StatusCode(500, new { message = "An error occurred while processing your request" });
         }
     }
@@ -65,11 +143,13 @@ public class SupplierGroupsController : ControllerBase
                 return NotFound();
             }
 
+            var memberCount = await _context.Partners.CountAsync(p => p.SupplierGroupId == id);
             var dto = new SupplierGroupDto
             {
                 Id = group.Id,
                 Name = group.Name,
-                Color = group.Color
+                Color = group.Color,
+                MemberCount = memberCount
             };
             _logger.LogInformation("Successfully fetched supplier group with ID {GroupId}", id);
             return Ok(dto);
@@ -98,7 +178,8 @@ public class SupplierGroupsController : ControllerBase
             {
                 Id = created.Id,
                 Name = created.Name,
-                Color = created.Color
+                Color = created.Color,
+                MemberCount = 0
             };
 
             _logger.LogInformation("Successfully created supplier group with ID {GroupId}", created.Id);

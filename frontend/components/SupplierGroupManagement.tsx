@@ -19,7 +19,10 @@ import {
   Info,
   Check,
   FileJson,
-  HelpCircle
+  HelpCircle,
+  ChevronLeft,
+  ChevronRight,
+  Loader
 } from 'lucide-react';
 import { SupplierGroup, Supplier } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -38,11 +41,29 @@ const COLOR_PRESETS = [
   { name: 'Slate', class: 'bg-slate-100 text-slate-800' },
 ];
 
+interface PaginatedGroupsResponse {
+  items: (SupplierGroup & { memberCount: number })[];
+  totalCount: number;
+  pageNumber: number;
+  pageSize: number;
+  totalPages: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+}
+
+const RAW_API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5197/api';
+const API_BASE_URL = RAW_API_BASE_URL.endsWith('/api')
+  ? RAW_API_BASE_URL
+  : `${RAW_API_BASE_URL.replace(/\/$/, '')}/api`;
+
 const SupplierGroupManagement: React.FC = () => {
   const { t } = useLanguage();
-  const [groups, setGroups] = useState<SupplierGroup[]>([]);
+  const [groups, setGroups] = useState<(SupplierGroup & { memberCount: number })[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [pageNumber, setPageNumber] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [pagination, setPagination] = useState<PaginatedGroupsResponse | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
   const [isDeleteWarningOpen, setIsDeleteWarningOpen] = useState(false);
@@ -65,19 +86,46 @@ const SupplierGroupManagement: React.FC = () => {
 
   // Load groups and suppliers on mount
   useEffect(() => {
-    loadData();
+    loadGroups(1, '');
+    loadSuppliers();
   }, []);
 
-  const loadData = async () => {
+  // Handle search with debounce
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadGroups(1, searchTerm);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const loadGroups = async (page: number = 1, search: string = '') => {
     try {
       setLoading(true);
       setError(null);
-      const [groupsData, suppliersData] = await Promise.all([
-        supplierGroupsApi.fetchSupplierGroups(),
-        fetchSuppliers()
-      ]);
-      // Convert API DTOs to frontend types
-      setGroups(groupsData.map(g => ({ id: g.id.toString(), name: g.name, color: g.color })));
+      const params = new URLSearchParams({
+        pageNumber: page.toString(),
+        pageSize: pageSize.toString(),
+        ...(search && { searchTerm: search })
+      });
+      
+      const response = await fetch(`${API_BASE_URL}/suppliergroups/paginated/list?${params}`);
+      const data: PaginatedGroupsResponse = await response.json();
+      
+      setGroups(data.items);
+      setPagination(data);
+      setPageNumber(page);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Hiba történt az adatok betöltésekor');
+      console.error('Error loading groups:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadSuppliers = async () => {
+    try {
+      const suppliersData = await fetchSuppliers();
       // Convert supplier API data to frontend format
       setSuppliers(suppliersData.map(s => ({
         id: s.id.toString(),
@@ -97,18 +145,15 @@ const SupplierGroupManagement: React.FC = () => {
         status: s.isActive ? 'ACTIVE' as const : 'INACTIVE' as const
       })));
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Hiba történt az adatok betöltésekor');
-      console.error('Error loading data:', err);
-    } finally {
-      setLoading(false);
+      console.error('Error loading suppliers:', err);
     }
   };
 
-  const filteredGroups = useMemo(() => {
-    return groups.filter(g => 
-      g.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-  }, [groups, searchTerm]);
+  const handlePageChange = (newPage: number) => {
+    if (pagination && newPage >= 1 && newPage <= pagination.totalPages) {
+      loadGroups(newPage, searchTerm);
+    }
+  };
 
   const handleAddNew = () => {
     setCurrentGroup({
@@ -142,7 +187,8 @@ const SupplierGroupManagement: React.FC = () => {
       // Reload data after successful import
       if (result.success) {
         setTimeout(() => {
-          loadData();
+          loadGroups(pageNumber, searchTerm);
+          loadSuppliers();
           setIsImportModalOpen(false);
           setSelectedFile(null);
         }, 2000);
@@ -175,7 +221,8 @@ const SupplierGroupManagement: React.FC = () => {
     try {
       setLoading(true);
       await supplierGroupsApi.deleteSupplierGroup(parseInt(currentGroup.id));
-      setGroups(groups.filter(g => g.id !== currentGroup.id));
+      // Reload groups after deletion
+      await loadGroups(pageNumber, searchTerm);
       setIsDeleteWarningOpen(false);
       setDeleteError(null);
     } catch (err) {
@@ -208,14 +255,14 @@ const SupplierGroupManagement: React.FC = () => {
           name: currentGroup.name,
           color: currentGroup.color || COLOR_PRESETS[0].class
         });
-        setGroups(groups.map(g => g.id === currentGroup.id ? currentGroup as SupplierGroup : g));
       } else {
-        const newGroup = await supplierGroupsApi.createSupplierGroup({
+        await supplierGroupsApi.createSupplierGroup({
           name: currentGroup.name,
           color: currentGroup.color || COLOR_PRESETS[0].class
         });
-        setGroups([...groups, { id: newGroup.id.toString(), name: newGroup.name, color: newGroup.color }]);
       }
+      // Reload groups after save
+      await loadGroups(pageNumber, searchTerm);
       setIsModalOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Hiba történt a mentés során');
@@ -320,91 +367,179 @@ const SupplierGroupManagement: React.FC = () => {
 
       {/* List View (Table) */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-100 text-slate-400 text-[10px] uppercase font-black tracking-widest">
-                <th className="px-6 py-4 w-12">#</th>
-                <th className="px-6 py-4">{t('sup.groups_table_name')}</th>
-                <th className="px-6 py-4">{t('sup.groups_table_color')}</th>
-                <th className="px-6 py-4">{t('sup.groups_table_count')}</th>
-                <th className="px-6 py-4">Tagok (Minta)</th>
-                <th className="px-6 py-4 text-right">{t('sup.table_actions')}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredGroups.map((group, index) => {
-                const groupSuppliers = suppliers.filter(s => s.groupId === group.id);
-                const count = groupSuppliers.length;
-                return (
-                  <tr key={group.id} className="hover:bg-slate-50/50 transition group">
-                    <td className="px-6 py-4 text-slate-400 font-mono text-xs">
-                      {index + 1}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-3 h-3 rounded-full ${group.color?.split(' ')[0] || 'bg-slate-100'}`}></div>
-                        <div className="font-bold text-slate-800 text-base">{group.name}</div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-tight ${group.color}`}>
-                        {group.color?.split(' ')[1]?.replace('text-', '').split('-')[0] || 'szürke'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center font-bold text-slate-700">
-                        <Users size={14} className="mr-1.5 text-slate-400" />
-                        {count} db
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex flex-wrap gap-1 max-w-xs">
-                        {groupSuppliers.slice(0, 2).map(s => (
-                          <span key={s.id} className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded truncate max-w-[100px]">
-                            {s.name}
-                          </span>
-                        ))}
-                        {count > 2 && <span className="text-[10px] text-slate-400 px-1 font-bold">+{count - 2}</span>}
-                        {count === 0 && <span className="text-[10px] text-slate-300 italic">Üres csoport</span>}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end space-x-1 transition-opacity">
-                        <button 
-                          onClick={() => handleManageMembers(group)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition flex items-center gap-1 text-xs font-bold"
-                          title={t('sup.groups_manage_members')}
-                        >
-                          <UserPlus size={16} />
-                          <span className="hidden lg:inline">{t('sup.groups_manage_members')}</span>
-                        </button>
-                        <button 
-                          onClick={() => handleEdit(group)}
-                          className="p-2 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition"
-                        >
-                          <Edit2 size={16} />
-                        </button>
-                        <button 
-                          onClick={() => handleDelete(group.id)}
-                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
+        {loading ? (
+          <div className="p-8 flex items-center justify-center">
+            <Loader className="animate-spin text-blue-600" size={32} />
+          </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-100 text-slate-400 text-[10px] uppercase font-black tracking-widest">
+                    <th className="px-6 py-4 w-12">#</th>
+                    <th className="px-6 py-4">{t('sup.groups_table_name')}</th>
+                    <th className="px-6 py-4">{t('sup.groups_table_color')}</th>
+                    <th className="px-6 py-4">{t('sup.groups_table_count')}</th>
+                    <th className="px-6 py-4">Tagok (Minta)</th>
+                    <th className="px-6 py-4 text-right">{t('sup.table_actions')}</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {filteredGroups.length === 0 && (
-             <div className="p-12 text-center text-slate-400 italic">
-               <Layers size={48} className="mx-auto mb-3 opacity-20" />
-               Nincs a keresésnek megfelelő csoport.
-             </div>
-          )}
-        </div>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {groups.length > 0 ? (
+                    groups.map((group, index) => {
+                      const groupSuppliers = suppliers.filter(s => s.groupId === group.id);
+                      return (
+                        <tr key={group.id} className="hover:bg-slate-50/50 transition group">
+                          <td className="px-6 py-4 text-slate-400 font-mono text-xs">
+                            {((pageNumber - 1) * pageSize) + index + 1}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-3 h-3 rounded-full ${group.color?.split(' ')[0] || 'bg-slate-100'}`}></div>
+                              <div className="font-bold text-slate-800 text-base">{group.name}</div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-[10px] font-black uppercase tracking-tight ${group.color}`}>
+                              {group.color?.split(' ')[1]?.replace('text-', '').split('-')[0] || 'szürke'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center font-bold text-slate-700">
+                              <Users size={14} className="mr-1.5 text-slate-400" />
+                              {group.memberCount} db
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex flex-wrap gap-1 max-w-xs">
+                              {groupSuppliers.slice(0, 2).map(s => (
+                                <span key={s.id} className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded truncate max-w-[100px]">
+                                  {s.name}
+                                </span>
+                              ))}
+                              {group.memberCount > 2 && <span className="text-[10px] text-slate-400 px-1 font-bold">+{group.memberCount - 2}</span>}
+                              {group.memberCount === 0 && <span className="text-[10px] text-slate-300 italic">Üres csoport</span>}
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex items-center justify-end space-x-1 transition-opacity">
+                              <button 
+                                onClick={() => handleManageMembers(group)}
+                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition flex items-center gap-1 text-xs font-bold"
+                                title={t('sup.groups_manage_members')}
+                              >
+                                <UserPlus size={16} />
+                                <span className="hidden lg:inline">{t('sup.groups_manage_members')}</span>
+                              </button>
+                              <button 
+                                onClick={() => handleEdit(group)}
+                                className="p-2 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition"
+                              >
+                                <Edit2 size={16} />
+                              </button>
+                              <button 
+                                onClick={() => handleDelete(group.id)}
+                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={6} className="p-12 text-center">
+                        <Layers size={48} className="mx-auto mb-3 opacity-20" />
+                        <p className="text-slate-400 italic">Nincs a keresésnek megfelelő csoport.</p>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls */}
+            {pagination && (
+              <div className="space-y-4 p-6 bg-slate-50 border-t border-slate-100">
+                {/* Page Size Selector */}
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-slate-600">
+                    {pagination.totalCount > 0 ? (
+                      <>
+                        Megjelenítés: <strong>{((pageNumber - 1) * pageSize) + 1}</strong> – <strong>{Math.min(pageNumber * pageSize, pagination.totalCount)}</strong> / <strong>{pagination.totalCount}</strong> csoportból
+                      </>
+                    ) : (
+                      'Nincsenek csoportok'
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <label className="text-sm font-medium text-slate-700">Sorok oldalanként:</label>
+                    <select
+                      value={pageSize}
+                      onChange={(e) => {
+                        setPageSize(parseInt(e.target.value));
+                        loadGroups(1, searchTerm);
+                      }}
+                      className="px-3 py-2 rounded-lg border border-slate-300 text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                    >
+                      <option value={10}>10</option>
+                      <option value={20}>20</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Page Navigation */}
+                <div className="flex items-center justify-center gap-2">
+                  <button
+                    onClick={() => handlePageChange(pageNumber - 1)}
+                    disabled={!pagination.hasPreviousPage}
+                    className="p-2 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  >
+                    <ChevronLeft size={20} />
+                  </button>
+
+                  <div className="flex items-center gap-1 px-4">
+                    {Array.from({ length: Math.min(7, pagination.totalPages) }).map((_, idx) => {
+                      const pageNum = Math.max(1, pageNumber - 3) + idx;
+                      if (pageNum > pagination.totalPages) return null;
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => handlePageChange(pageNum)}
+                          className={`w-9 h-9 rounded-lg text-sm font-bold transition ${
+                            pageNum === pageNumber
+                              ? 'bg-blue-600 text-white'
+                              : 'border border-slate-300 text-slate-600 hover:bg-slate-100'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    onClick={() => handlePageChange(pageNumber + 1)}
+                    disabled={!pagination.hasNextPage}
+                    className="p-2 rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                  >
+                    <ChevronRight size={20} />
+                  </button>
+                </div>
+
+                {/* Page Info */}
+                <div className="text-center text-xs text-slate-500">
+                  <strong>{pageNumber}</strong>. oldal / <strong>{pagination.totalPages}</strong> oldalból
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {/* Member Management Modal */}

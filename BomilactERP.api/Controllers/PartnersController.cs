@@ -59,6 +59,100 @@ public class PartnersController : ControllerBase
         }
     }
 
+    [HttpGet("paginated")]
+    public async Task<ActionResult<PaginatedResponseDto<PartnerDto>>> GetPaginated([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20, [FromQuery] string? searchTerm = null, [FromQuery] string? sortBy = "Name", [FromQuery] bool sortDescending = false)
+    {
+        try
+        {
+            _logger.LogInformation("Fetching paginated partners - Page: {PageNumber}, Size: {PageSize}, Search: {SearchTerm}", pageNumber, pageSize, searchTerm);
+            
+            // Validate pagination parameters
+            if (pageNumber < 1) pageNumber = 1;
+            if (pageSize < 1 || pageSize > 100) pageSize = 20;
+
+            // Get all partners and filter by search term
+            var partners = await _repository.GetAllAsync();
+            
+            var filteredPartners = partners.AsEnumerable();
+
+            // Apply search filter
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                var search = searchTerm.ToLower();
+                filteredPartners = filteredPartners.Where(p =>
+                    p.Name.ToLower().Contains(search) ||
+                    (p.TaxNumber != null && p.TaxNumber.ToLower().Contains(search)) ||
+                    (p.City != null && p.City.ToLower().Contains(search)) ||
+                    (p.ContactPerson != null && p.ContactPerson.ToLower().Contains(search)) ||
+                    (p.Email != null && p.Email.ToLower().Contains(search)) ||
+                    (p.Phone != null && p.Phone.ToLower().Contains(search))
+                );
+            }
+
+            // Apply sorting
+            filteredPartners = sortBy switch
+            {
+                "TaxNumber" => sortDescending 
+                    ? filteredPartners.OrderByDescending(p => p.TaxNumber) 
+                    : filteredPartners.OrderBy(p => p.TaxNumber),
+                "City" => sortDescending 
+                    ? filteredPartners.OrderByDescending(p => p.City) 
+                    : filteredPartners.OrderBy(p => p.City),
+                "Type" => sortDescending 
+                    ? filteredPartners.OrderByDescending(p => p.Type) 
+                    : filteredPartners.OrderBy(p => p.Type),
+                "IsActive" => sortDescending 
+                    ? filteredPartners.OrderByDescending(p => p.IsActive) 
+                    : filteredPartners.OrderBy(p => p.IsActive),
+                _ => sortDescending 
+                    ? filteredPartners.OrderByDescending(p => p.Name) 
+                    : filteredPartners.OrderBy(p => p.Name)
+            };
+
+            var totalCount = filteredPartners.Count();
+
+            // Apply pagination
+            var items = filteredPartners
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .Select(p => new PartnerDto
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    TaxNumber = p.TaxNumber,
+                    ExploitationCode = p.ExploitationCode,
+                    ApiaCode = p.ApiaCode,
+                    Address = p.Address,
+                    City = p.City,
+                    PostalCode = p.PostalCode,
+                    Country = p.Country,
+                    ContactPerson = p.ContactPerson,
+                    Email = p.Email,
+                    Phone = p.Phone,
+                    Type = (int)p.Type,
+                    IsActive = p.IsActive,
+                    SupplierGroupId = p.SupplierGroupId
+                })
+                .ToList();
+
+            var response = new PaginatedResponseDto<PartnerDto>
+            {
+                Items = items,
+                TotalCount = totalCount,
+                PageNumber = pageNumber,
+                PageSize = pageSize
+            };
+
+            _logger.LogInformation("Successfully fetched paginated partners - Total: {TotalCount}, Returned: {ItemCount}", totalCount, items.Count);
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "An error occurred while fetching paginated partners");
+            return StatusCode(500, new { message = "An error occurred while processing your request" });
+        }
+    }
+
     [HttpGet("{id}")]
     public async Task<ActionResult<PartnerDto>> GetById(int id)
     {

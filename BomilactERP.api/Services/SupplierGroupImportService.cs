@@ -117,8 +117,8 @@ public class SupplierGroupImportService
 
                 try
                 {
-                    var taxNumber = taxNumberCell.IsEmpty() ? null : taxNumberCell.Value.ToString().Trim();
-                    var exploitationCode = exploitationCodeCell.IsEmpty() ? null : exploitationCodeCell.Value.ToString().Trim();
+                    string? taxNumber = taxNumberCell.IsEmpty() ? null : taxNumberCell.Value.ToString().Trim();
+                    string? exploitationCode = exploitationCodeCell.IsEmpty() ? null : exploitationCodeCell.Value.ToString().Trim();
 
                     // Skip rows with empty names
                     if (string.IsNullOrWhiteSpace(nameValue))
@@ -128,7 +128,7 @@ public class SupplierGroupImportService
                     }
 
                     // Try to find existing partner by tax number
-                    Partner partner = null;
+                    Partner? partner = null;
                     
                     if (!string.IsNullOrWhiteSpace(taxNumber))
                     {
