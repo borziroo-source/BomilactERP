@@ -182,7 +182,7 @@ export interface Compartment {
 }
 
 export interface Vehicle {
-  id: string;
+  id: number;
   plateNumber: string;
   makeModel: string;
   type: VehicleType;
@@ -202,8 +202,8 @@ export interface Vehicle {
 }
 
 export interface WashLog {
-  id: string;
-  vehicleId: string;
+  id: number;
+  vehicleId: number;
   timestamp: string;
   performedBy: string;
   chemicals: string[];

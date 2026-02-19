@@ -51,7 +51,7 @@ export const getInternalMenu = (t: Translator): MenuItem[] => [
       { id: 'log_routes', label: 'Útvonal Tervező', description: 'Begyűjtő járatok optimalizálása' },
       { id: 'log_fleet', label: 'Flotta & Mosás', description: 'Gépjárművek és CIP mosási napló' },
       { id: 'log_suppliers', label: 'Beszállítói Törzs', description: 'Gazdák és Gyűjtőpontok' },
-      { id: 'log_supplier_groups', label: 'Körzetek Kezelése', description: 'Begyűjtési zónák' },
+      { id: 'log_supplier_groups', label: 'Tejcsarnokok Kezelése', description: 'Begyűjtési zónák' },
       { id: 'log_contracts', label: 'Szerződések & Árak', description: 'Kvóták és alapárak kezelése' }
     ]
   },

@@ -22,6 +22,9 @@ public class BomilactDbContext : DbContext
     public DbSet<ProductionItem> ProductionItems { get; set; }
     public DbSet<Contract> Contracts { get; set; }
     public DbSet<SupplierGroup> SupplierGroups { get; set; }
+    public DbSet<Vehicle> Vehicles { get; set; }
+    public DbSet<VehicleCompartment> VehicleCompartments { get; set; }
+    public DbSet<WashLog> WashLogs { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -41,6 +44,8 @@ public class BomilactDbContext : DbContext
         modelBuilder.Entity<ProductionItem>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<Contract>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<SupplierGroup>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<Vehicle>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<WashLog>().HasQueryFilter(e => !e.IsDeleted);
 
         // User configuration
         modelBuilder.Entity<User>(entity =>
@@ -216,6 +221,40 @@ public class BomilactDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(e => e.ProductId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Vehicle configuration
+        modelBuilder.Entity<Vehicle>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.PlateNumber).HasMaxLength(20).IsRequired();
+            entity.HasIndex(e => e.PlateNumber).IsUnique();
+            entity.Property(e => e.MakeModel).HasMaxLength(200);
+            entity.Property(e => e.TotalCapacityLiters).HasPrecision(18, 2);
+
+            entity.HasMany(e => e.Compartments)
+                .WithOne(c => c.Vehicle)
+                .HasForeignKey(c => c.VehicleId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(e => e.WashLogs)
+                .WithOne(w => w.Vehicle)
+                .HasForeignKey(w => w.VehicleId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<VehicleCompartment>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.CapacityLiters).HasPrecision(18, 2);
+            entity.Property(e => e.CurrentContent).HasMaxLength(50);
+        });
+
+        modelBuilder.Entity<WashLog>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.PerformedBy).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Chemicals).HasMaxLength(500);
         });
     }
 

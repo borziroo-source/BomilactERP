@@ -16,55 +16,16 @@ import {
   Navigation,
   RefreshCw
 } from 'lucide-react';
-import { Vehicle, VehicleType, VehicleStatus, WashLog } from '../types';
-
-// Mock Data
-const INITIAL_VEHICLES: Vehicle[] = [
-  {
-    id: 'TRUCK-HR10BOM',
-    plateNumber: 'HR-10-BOM',
-    makeModel: 'MAN TGM 18.250',
-    type: VehicleType.MILK_TANKER,
-    status: VehicleStatus.DIRTY,
-    totalCapacityLiters: 8000,
-    compartments: [
-      { id: 1, capacityLiters: 4000, currentContent: 'EMPTY' },
-      { id: 2, capacityLiters: 4000, currentContent: 'EMPTY' }
-    ],
-    itpExpiry: '2024-12-15',
-    rcaExpiry: '2024-11-01',
-    lastWashTime: '2023-10-24T14:30:00', // Régi mosás -> DIRTY
-    mileageKm: 145000
-  },
-  {
-    id: 'TRUCK-HR99TEJ',
-    plateNumber: 'HR-99-TEJ',
-    makeModel: 'Mercedes Atego (Hűtős)',
-    type: VehicleType.REEFER_TRUCK,
-    status: VehicleStatus.READY_TO_COLLECT, // Hűtősöknél ez simán "READY"
-    totalCapacityLiters: 15000, // Csomagtér
-    itpExpiry: '2024-06-20',
-    rcaExpiry: '2024-08-10',
-    mileageKm: 210500,
-    lastWashTime: new Date().toISOString() // Friss
-  },
-  {
-    id: 'CAR-HR05BOM',
-    plateNumber: 'HR-05-BOM',
-    makeModel: 'Dacia Duster',
-    type: VehicleType.PASSENGER,
-    status: VehicleStatus.READY_TO_COLLECT,
-    itpExpiry: '2025-01-10',
-    rcaExpiry: '2024-12-01',
-    mileageKm: 45000
-  }
-];
+import { Vehicle, VehicleType, VehicleStatus } from '../types';
+import * as fleetApi from '../services/fleet';
 
 const FleetManagement: React.FC = () => {
-  const [vehicles, setVehicles] = useState<Vehicle[]>(INITIAL_VEHICLES);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [activeTab, setActiveTab] = useState<'VEHICLES' | 'DOCS'>('VEHICLES');
   const [washModalOpen, setWashModalOpen] = useState(false);
-  const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
+  const [selectedVehicleId, setSelectedVehicleId] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   // Wash Form State
   const [washTemp, setWashTemp] = useState(65);
@@ -89,6 +50,23 @@ const FleetManagement: React.FC = () => {
     mileageKm: 0
   });
 
+  const loadVehicles = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await fleetApi.fetchVehicles();
+      setVehicles(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Hiba történt a járművek betöltésekor.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadVehicles();
+  }, []);
+
   // --- LOGIC: HACCP Check ---
   // Ha a mosás régebbi mint 24 óra, és Milk Tanker, akkor jelezzük
   const isWashExpired = (lastWashTime?: string) => {
@@ -98,32 +76,42 @@ const FleetManagement: React.FC = () => {
   };
 
   // --- ACTIONS ---
-  const handleOpenWashModal = (vId: string) => {
+  const handleOpenWashModal = (vId: number) => {
     setSelectedVehicleId(vId);
     setWashModalOpen(true);
   };
 
-  const handleSaveWash = () => {
+  const handleSaveWash = async () => {
     if (!selectedVehicleId) return;
-    
-    const now = new Date().toISOString();
-    
-    setVehicles(prev => prev.map(v => {
-      if (v.id === selectedVehicleId) {
-        return {
-          ...v,
-          status: VehicleStatus.READY_TO_COLLECT,
-          lastWashTime: now
-        };
-      }
-      return v;
-    }));
+    try {
+      const updatedVehicle = await fleetApi.recordWash(selectedVehicleId, {
+        performedBy: washerName,
+        chemicals: [washChemicals],
+        temperature: washTemp
+      });
 
-    setWashModalOpen(false);
-    // Itt lehetne menteni a WashLog-ot is egy külön state-be
+      setVehicles(prev => prev.map(v => (v.id === updatedVehicle.id ? updatedVehicle : v)));
+      setWashModalOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Nem sikerült rögzíteni a mosást.');
+    }
   };
 
-  const handleOpenRenewModal = (vId: string, type: 'ITP' | 'RCA') => {
+  const formatDateInput = (value?: string) => {
+    if (!value) return '';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '';
+    return date.toISOString().split('T')[0];
+  };
+
+  const formatDateDisplay = (value?: string) => {
+    if (!value) return 'N/A';
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toISOString().split('T')[0];
+  };
+
+  const handleOpenRenewModal = (vId: number, type: 'ITP' | 'RCA') => {
     setSelectedVehicleId(vId);
     setRenewDocType(type);
     
@@ -131,61 +119,70 @@ const FleetManagement: React.FC = () => {
     const currentVehicle = vehicles.find(v => v.id === vId);
     if (currentVehicle) {
         const currentDate = type === 'ITP' ? currentVehicle.itpExpiry : currentVehicle.rcaExpiry;
-        // Simple logic: if exists, prefill, otherwise empty
-        setNewExpiryDate(currentDate || ''); 
+        setNewExpiryDate(formatDateInput(currentDate));
     }
     setRenewModalOpen(true);
   };
 
-  const handleSaveRenew = () => {
+  const handleSaveRenew = async () => {
     if (!selectedVehicleId || !renewDocType || !newExpiryDate) return;
 
-    setVehicles(prev => prev.map(v => {
-      if (v.id === selectedVehicleId) {
-        return {
-          ...v,
-          [renewDocType === 'ITP' ? 'itpExpiry' : 'rcaExpiry']: newExpiryDate
-        };
-      }
-      return v;
-    }));
+    try {
+      await fleetApi.updateVehicleDocuments(selectedVehicleId, {
+        itpExpiry: renewDocType === 'ITP' ? newExpiryDate : undefined,
+        rcaExpiry: renewDocType === 'RCA' ? newExpiryDate : undefined
+      });
 
-    setRenewModalOpen(false);
+      setVehicles(prev => prev.map(v => {
+        if (v.id === selectedVehicleId) {
+          return {
+            ...v,
+            [renewDocType === 'ITP' ? 'itpExpiry' : 'rcaExpiry']: newExpiryDate
+          } as Vehicle;
+        }
+        return v;
+      }));
+
+      setRenewModalOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Nem sikerült frissíteni az okmányt.');
+    }
   };
 
-  const handleSaveNewVehicle = (e: React.FormEvent) => {
+  const handleSaveNewVehicle = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newVehicle.plateNumber || !newVehicle.makeModel || !newVehicle.itpExpiry || !newVehicle.rcaExpiry) {
       alert("Minden mező kitöltése kötelező!");
       return;
     }
+    try {
+      const created = await fleetApi.createVehicle({
+        plateNumber: newVehicle.plateNumber.toUpperCase(),
+        makeModel: newVehicle.makeModel,
+        type: newVehicle.type as VehicleType,
+        status: VehicleStatus.READY_TO_COLLECT,
+        totalCapacityLiters: newVehicle.totalCapacityLiters || 0,
+        itpExpiry: newVehicle.itpExpiry,
+        rcaExpiry: newVehicle.rcaExpiry,
+        mileageKm: newVehicle.mileageKm || 0,
+        lastWashTime: new Date().toISOString()
+      });
 
-    const vehicle: Vehicle = {
-      id: `VEH-${Math.floor(Math.random() * 10000)}`,
-      plateNumber: newVehicle.plateNumber.toUpperCase(),
-      makeModel: newVehicle.makeModel,
-      type: newVehicle.type as VehicleType,
-      status: VehicleStatus.READY_TO_COLLECT,
-      itpExpiry: newVehicle.itpExpiry,
-      rcaExpiry: newVehicle.rcaExpiry,
-      mileageKm: newVehicle.mileageKm || 0,
-      totalCapacityLiters: newVehicle.totalCapacityLiters || 0,
-      lastWashTime: new Date().toISOString() // Assume clean on entry
-    };
-
-    setVehicles([...vehicles, vehicle]);
-    setAddModalOpen(false);
-    // Reset form
-    setNewVehicle({
-      plateNumber: '',
-      makeModel: '',
-      type: VehicleType.MILK_TANKER,
-      status: VehicleStatus.READY_TO_COLLECT,
-      totalCapacityLiters: 0,
-      itpExpiry: '',
-      rcaExpiry: '',
-      mileageKm: 0
-    });
+      setVehicles(prev => [...prev, created]);
+      setAddModalOpen(false);
+      setNewVehicle({
+        plateNumber: '',
+        makeModel: '',
+        type: VehicleType.MILK_TANKER,
+        status: VehicleStatus.READY_TO_COLLECT,
+        totalCapacityLiters: 0,
+        itpExpiry: '',
+        rcaExpiry: '',
+        mileageKm: 0
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Nem sikerült létrehozni a járművet.');
+    }
   };
 
   const getStatusBadge = (vehicle: Vehicle) => {
@@ -242,6 +239,18 @@ const FleetManagement: React.FC = () => {
         </div>
       </div>
 
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+          {error}
+        </div>
+      )}
+
+      {loading && (
+        <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 text-sm text-slate-500">
+          Betöltés folyamatban...
+        </div>
+      )}
+
       {/* Main Content - VEHICLES LIST */}
       {activeTab === 'VEHICLES' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -270,11 +279,12 @@ const FleetManagement: React.FC = () => {
                 {/* Card Body */}
                 <div className="p-4 space-y-4">
                   
-                  {/* Capacity Info */}
-                  <div className="flex justify-between items-center text-sm">
-                     <span className="text-slate-500">Kapacitás:</span>
-                     <span className="font-semibold">{vehicle.totalCapacityLiters?.toLocaleString()} L / Kg</span>
-                  </div>
+                  {vehicle.type !== VehicleType.PASSENGER && (
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-slate-500">Kapacitás:</span>
+                      <span className="font-semibold">{vehicle.totalCapacityLiters?.toLocaleString()} L / Kg</span>
+                    </div>
+                  )}
 
                   {/* Compartments Visualization (Only for Tankers) */}
                   {vehicle.type === VehicleType.MILK_TANKER && vehicle.compartments && (
@@ -295,24 +305,27 @@ const FleetManagement: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Last Wash Info */}
-                  <div className="flex items-start space-x-2 bg-blue-50 p-2 rounded text-xs text-blue-800">
-                     <Clock size={14} className="mt-0.5" />
-                     <div>
-                       <span className="font-bold">Utolsó Mosás (CIP):</span><br/>
-                       {vehicle.lastWashTime ? new Date(vehicle.lastWashTime).toLocaleString('hu-HU') : 'Nincs adat'}
-                     </div>
-                  </div>
+                  {vehicle.type !== VehicleType.PASSENGER && (
+                    <div className="flex items-start space-x-2 bg-blue-50 p-2 rounded text-xs text-blue-800">
+                      <Clock size={14} className="mt-0.5" />
+                      <div>
+                        <span className="font-bold">Utolsó Mosás (CIP):</span><br/>
+                        {vehicle.lastWashTime ? new Date(vehicle.lastWashTime).toLocaleString('hu-HU') : 'Nincs adat'}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Action Buttons */}
                   <div className="pt-2 border-t border-slate-100 grid grid-cols-2 gap-2">
-                    <button 
-                      onClick={() => handleOpenWashModal(vehicle.id)}
-                      className="flex items-center justify-center px-3 py-2 bg-white border border-slate-200 hover:bg-blue-50 hover:border-blue-300 text-slate-700 rounded-lg text-sm transition"
-                    >
-                      <Droplet size={16} className="mr-2 text-blue-500" />
-                      Mosás Rögzítése
-                    </button>
+                    {vehicle.type !== VehicleType.PASSENGER && (
+                      <button 
+                        onClick={() => handleOpenWashModal(vehicle.id)}
+                        className="flex items-center justify-center px-3 py-2 bg-white border border-slate-200 hover:bg-blue-50 hover:border-blue-300 text-slate-700 rounded-lg text-sm transition"
+                      >
+                        <Droplet size={16} className="mr-2 text-blue-500" />
+                        Mosás Rögzítése
+                      </button>
+                    )}
                     <button className="flex items-center justify-center px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-lg text-sm transition">
                       <FileText size={16} className="mr-2 text-slate-400" />
                       Útvonal
@@ -350,7 +363,7 @@ const FleetManagement: React.FC = () => {
                   <td className="py-3">
                     <div className="flex items-center space-x-2">
                        <span className={`font-mono ${new Date(v.itpExpiry) < new Date() ? 'text-red-600 font-bold' : 'text-slate-700'}`}>
-                         {v.itpExpiry}
+                         {formatDateDisplay(v.itpExpiry)}
                        </span>
                        <button 
                          onClick={() => handleOpenRenewModal(v.id, 'ITP')}
@@ -366,7 +379,7 @@ const FleetManagement: React.FC = () => {
                   <td className="py-3">
                     <div className="flex items-center space-x-2">
                        <span className={`font-mono ${new Date(v.rcaExpiry) < new Date() ? 'text-red-600 font-bold' : 'text-green-600'}`}>
-                         {v.rcaExpiry}
+                         {formatDateDisplay(v.rcaExpiry)}
                        </span>
                        <button 
                          onClick={() => handleOpenRenewModal(v.id, 'RCA')}
