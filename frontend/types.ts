@@ -117,12 +117,34 @@ export interface Contract {
   notes?: string;
 }
 
+export type AntibioticTest = 'NEGATIVE' | 'POSITIVE';
+export type MilkCollectionStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
+export interface MilkCollectionEntry {
+  id: number;
+  timestamp: string;
+  supplierId: number;
+  supplierName: string;
+  vehicleId?: number | null;
+  vehiclePlate: string;
+  quantityLiters: number;
+  fatPercentage: number;
+  proteinPercentage: number;
+  temperature: number;
+  ph: number;
+  antibioticTest: AntibioticTest;
+  sampleId: string;
+  status: MilkCollectionStatus;
+  inspector: string;
+  notes?: string | null;
+}
+
 // ÚJ: Havi összesítő (Borderou) típus
 export interface MonthlyCollectionSummary {
-  id: string;
+  id: number;
   month: string; // YYYY-MM
-  supplierId: string; // Gazda ID
-  collectionPointId?: string; // Csarnok ID
+  supplierId: number; // Gazda ID
+  collectionPointId?: number; // Csarnok ID
   totalLiters: number;
   avgFat: number;
   avgProtein: number;

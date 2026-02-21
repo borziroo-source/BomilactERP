@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { 
   Search, 
   Plus, 
@@ -26,95 +26,63 @@ import {
   AlertTriangle,
   Info
 } from 'lucide-react';
-import { Supplier, MonthlyCollectionSummary } from '../types';
+import { Supplier, SupplierGroup, MonthlyCollectionSummary, MilkCollectionEntry, Vehicle } from '../types';
+import * as supplierService from '../services/suppliers';
+import * as supplierGroupService from '../services/supplierGroups';
+import * as fleetService from '../services/fleet';
+import * as milkCollectionService from '../services/milkCollections';
 
-interface CollectionEntry {
-  id: string;
-  timestamp: string; 
-  supplierId: string;
-  supplierName: string;
-  vehiclePlate: string;
-  quantityLiters: number;
-  fatPercentage: number;
-  proteinPercentage: number;
-  temperature: number;
-  ph: number;
-  antibioticTest: 'NEGATIVE' | 'POSITIVE';
-  sampleId: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED';
-  inspector: string;
-}
-
-// Mock Beszállítók
-const MOCK_SUPPLIERS: Supplier[] = [
-  { id: 's1', name: 'Csarnok - Csíkszentdomokos', type: 'COLLECTION_POINT', cui: 'C1', address: 'Domokos', phone: '1', legalType: 'COMPANY', apiaCode: '', exploitationCode: '', hasSubsidy8: false, bankName: '', bankBranch: '', iban: '', status: 'ACTIVE' },
-  { id: 'g1', name: 'Kovács István (Gazda)', type: 'FARMER', parentSupplierId: 's1', cui: 'G1', address: 'Domokos', phone: '1', legalType: 'INDIVIDUAL', apiaCode: '', exploitationCode: '', hasSubsidy8: false, bankName: '', bankBranch: '', iban: '', status: 'ACTIVE' },
-  { id: 'g2', name: 'Péter Anna (Gazda)', type: 'FARMER', cui: 'G2', address: 'Madaras', phone: '1', legalType: 'INDIVIDUAL', apiaCode: '', exploitationCode: '', hasSubsidy8: false, bankName: '', bankBranch: '', iban: '', status: 'ACTIVE' },
-  { id: 'sc1', name: 'Agro Lacto Coop', type: 'COOPERATIVE', cui: 'CUI-ALC', address: 'Gyergyó', phone: '1', legalType: 'COMPANY', apiaCode: '', exploitationCode: '', hasSubsidy8: false, bankName: '', bankBranch: '', iban: '', status: 'ACTIVE' },
-];
-
-const MOCK_VEHICLES = ['HR-10-BOM', 'HR-99-TEJ', 'HR-05-BOM'];
-
-const INITIAL_COLLECTIONS: CollectionEntry[] = [
-  { 
-    id: 'col-1', 
-    timestamp: '2023-10-26T06:30:00', 
-    supplierId: 'sc1',
-    supplierName: 'Agro Lacto Coop', 
-    vehiclePlate: 'HR-10-BOM', 
-    quantityLiters: 4500, 
-    fatPercentage: 3.82, 
-    proteinPercentage: 3.25, 
-    temperature: 3.5, 
-    ph: 6.65, 
-    antibioticTest: 'NEGATIVE', 
-    sampleId: 'SMP-8821',
-    status: 'APPROVED', 
-    inspector: 'Kovács János' 
-  },
-];
+type IntakeFormState = {
+   supplierId: string;
+   vehiclePlate: string;
+   quantityLiters: number;
+   fatPercentage: number;
+   proteinPercentage: number;
+   temperature: number;
+   ph: number;
+   antibioticTest: 'NEGATIVE' | 'POSITIVE';
+   sampleId: string;
+};
 
 const DailyCollection: React.FC = () => {
   const [viewMode, setViewMode] = useState<'DAILY' | 'MONTHLY'>('DAILY');
-  const [collections, setCollections] = useState<CollectionEntry[]>(INITIAL_COLLECTIONS);
+   const [collections, setCollections] = useState<MilkCollectionEntry[]>([]);
+   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+   const [collectionPoints, setCollectionPoints] = useState<SupplierGroup[]>([]);
+   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]);
   const [filterMonth, setFilterMonth] = useState(new Date().toISOString().slice(0, 7));
   const [selectedPointId, setSelectedPointId] = useState<string>('');
+   const [isLoading, setIsLoading] = useState(true);
+   const [isSaving, setIsSaving] = useState(false);
+   const [error, setError] = useState<string | null>(null);
+   const [editingEntry, setEditingEntry] = useState<MilkCollectionEntry | null>(null);
   
   // Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [newIntake, setNewIntake] = useState<Partial<CollectionEntry>>({
-    supplierId: '',
-    vehiclePlate: MOCK_VEHICLES[0],
-    quantityLiters: 0,
-    fatPercentage: 3.5,
-    proteinPercentage: 3.2,
-    temperature: 4.0,
-    ph: 6.6,
-    antibioticTest: 'NEGATIVE',
-    sampleId: `SMP-${Math.floor(1000 + Math.random() * 9000)}`
-  });
+   const [newIntake, setNewIntake] = useState<IntakeFormState>({
+      supplierId: '',
+      vehiclePlate: '',
+      quantityLiters: 0,
+      fatPercentage: 3.5,
+      proteinPercentage: 3.2,
+      temperature: 4.0,
+      ph: 6.6,
+      antibioticTest: 'NEGATIVE',
+      sampleId: `SMP-${Math.floor(1000 + Math.random() * 9000)}`
+   });
 
   // Havi összesítők state (Borderou)
   const [monthlySummaries, setMonthlySummaries] = useState<MonthlyCollectionSummary[]>([]);
 
   // --- DERIVED DATA ---
-  const dailyEntries = useMemo(() => {
-    return collections.filter(c => 
-      c.timestamp.startsWith(filterDate) &&
-      (c.supplierName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       c.vehiclePlate.toLowerCase().includes(searchTerm.toLowerCase()) ||
-       c.sampleId.toLowerCase().includes(searchTerm.toLowerCase()))
-    );
-  }, [collections, filterDate, searchTerm]);
-
-  const collectionPoints = useMemo(() => MOCK_SUPPLIERS.filter(s => s.type === 'COLLECTION_POINT'), []);
+   const dailyEntries = useMemo(() => collections, [collections]);
   
   const farmersInPoint = useMemo(() => {
     if (!selectedPointId) return [];
-    return MOCK_SUPPLIERS.filter(s => s.parentSupplierId === selectedPointId);
-  }, [selectedPointId]);
+      return suppliers.filter(s => s.groupId === selectedPointId);
+   }, [selectedPointId, suppliers]);
 
   const dailyStats = useMemo(() => {
     const total = dailyEntries.reduce((acc, curr) => acc + curr.quantityLiters, 0);
@@ -124,71 +92,313 @@ const DailyCollection: React.FC = () => {
     return { total, avgFat, count: dailyEntries.length };
   }, [dailyEntries]);
 
-  // --- HANDLERS ---
-  const handleSaveIntake = (e: React.FormEvent) => {
-    e.preventDefault();
-    const supplier = MOCK_SUPPLIERS.find(s => s.id === newIntake.supplierId);
-    
-    if (!supplier || !newIntake.quantityLiters) {
-      alert("Kérjük válasszon beszállítót és adjon meg mennyiséget!");
-      return;
-    }
+   const generateSampleId = () => `SMP-${Math.floor(1000 + Math.random() * 9000)}`;
 
-    const entry: CollectionEntry = {
-      ...newIntake as CollectionEntry,
-      id: `col-${Date.now()}`,
-      timestamp: `${filterDate}T${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', hour12: false})}:00`,
-      supplierName: supplier.name,
-      status: 'APPROVED',
-      inspector: 'Aktív Felhasználó'
-    };
-
-    setCollections([entry, ...collections]);
-    setIsAddModalOpen(false);
-    // Reset form
-    setNewIntake({
+   const buildDefaultIntake = (plateOverride?: string): IntakeFormState => ({
       supplierId: '',
-      vehiclePlate: MOCK_VEHICLES[0],
+      vehiclePlate: plateOverride ?? vehicles[0]?.plateNumber ?? '',
       quantityLiters: 0,
       fatPercentage: 3.5,
       proteinPercentage: 3.2,
       temperature: 4.0,
       ph: 6.6,
       antibioticTest: 'NEGATIVE',
-      sampleId: `SMP-${Math.floor(1000 + Math.random() * 9000)}`
-    });
-  };
+      sampleId: generateSampleId()
+   });
 
-  const handleMonthlyValueChange = (farmerId: string, field: keyof MonthlyCollectionSummary, value: string) => {
-    const val = parseFloat(value) || 0;
-    setMonthlySummaries(prev => {
-      const existingIdx = prev.findIndex(s => s.supplierId === farmerId && s.month === filterMonth);
-      if (existingIdx > -1) {
-        const updated = [...prev];
-        updated[existingIdx] = { ...updated[existingIdx], [field]: val };
-        return updated;
-      } else {
-        const newItem: MonthlyCollectionSummary = {
-          id: `ms-${Date.now()}-${farmerId}`,
-          month: filterMonth,
-          supplierId: farmerId,
-          collectionPointId: selectedPointId,
-          totalLiters: field === 'totalLiters' ? val : 0,
-          avgFat: field === 'avgFat' ? val : 3.5,
-          avgProtein: field === 'avgProtein' ? val : 3.2,
-          status: 'DRAFT'
-        };
-        return [...prev, newItem];
+   const loadReferenceData = async () => {
+      try {
+         setIsLoading(true);
+         setError(null);
+
+         const [supplierData, groupData, vehicleData] = await Promise.all([
+            supplierService.fetchSuppliers(),
+            supplierGroupService.fetchSupplierGroups(),
+            fleetService.fetchVehicles()
+         ]);
+
+         const mappedSuppliers: Supplier[] = supplierData.map(apiSupplier => ({
+            id: apiSupplier.id.toString(),
+            name: apiSupplier.name,
+            cui: apiSupplier.taxNumber || '',
+            legalType: 'COMPANY',
+            exploitationCode: apiSupplier.exploitationCode || '',
+            apiaCode: apiSupplier.apiaCode || '',
+            hasSubsidy8: false,
+            bankName: '',
+            bankBranch: '',
+            iban: '',
+            type: 'FARMER',
+            groupId: apiSupplier.supplierGroupId?.toString(),
+            address: `${apiSupplier.address || ''} ${apiSupplier.city || ''}`.trim(),
+            phone: apiSupplier.phone || '',
+            email: apiSupplier.email || '',
+            status: apiSupplier.isActive ? 'ACTIVE' : 'INACTIVE',
+            invoiceSeries: '',
+            nextInvoiceNumber: 1
+         }));
+
+         const mappedGroups: SupplierGroup[] = groupData.map(group => ({
+            id: group.id.toString(),
+            name: group.name,
+            color: group.color
+         }));
+
+         setSuppliers(mappedSuppliers);
+         setCollectionPoints(mappedGroups);
+         setVehicles(vehicleData);
+
+         if (!newIntake.vehiclePlate && vehicleData.length > 0) {
+            setNewIntake(prev => ({ ...prev, vehiclePlate: vehicleData[0].plateNumber }));
+         }
+      } catch (err) {
+         setError(err instanceof Error ? err.message : 'Hiba tortent az adatok betoltese soran');
+      } finally {
+         setIsLoading(false);
       }
-    });
-  };
+   };
 
-  const getMonthlyData = (farmerId: string) => {
-    return monthlySummaries.find(s => s.supplierId === farmerId && s.month === filterMonth) || { totalLiters: 0, avgFat: 3.5, avgProtein: 3.2 };
-  };
+   const loadCollections = async () => {
+      try {
+         setIsLoading(true);
+         setError(null);
+         const data = await milkCollectionService.fetchMilkCollections(filterDate, searchTerm);
+         setCollections(data);
+      } catch (err) {
+         setError(err instanceof Error ? err.message : 'Hiba tortent az atvetelek betoltese soran');
+      } finally {
+         setIsLoading(false);
+      }
+   };
+
+   const loadMonthlySummaries = async () => {
+      if (!selectedPointId) {
+         setMonthlySummaries([]);
+         return;
+      }
+
+      try {
+         setIsLoading(true);
+         setError(null);
+         const data = await milkCollectionService.fetchMonthlySummaries(filterMonth, parseInt(selectedPointId, 10));
+         setMonthlySummaries(data.map(item => ({
+            id: item.id,
+            month: item.month,
+            supplierId: item.supplierId,
+            collectionPointId: item.collectionPointId,
+            totalLiters: item.totalLiters,
+            avgFat: item.avgFat,
+            avgProtein: item.avgProtein,
+            status: item.status
+         })));
+      } catch (err) {
+         setError(err instanceof Error ? err.message : 'Hiba tortent a havi osszesitok betoltese soran');
+      } finally {
+         setIsLoading(false);
+      }
+   };
+
+   useEffect(() => {
+      loadReferenceData();
+   }, []);
+
+   useEffect(() => {
+      const timer = setTimeout(() => {
+         loadCollections();
+      }, 300);
+      return () => clearTimeout(timer);
+   }, [filterDate, searchTerm]);
+
+   useEffect(() => {
+      loadMonthlySummaries();
+   }, [selectedPointId, filterMonth]);
+
+  // --- HANDLERS ---
+   const handleSaveIntake = async (e: React.FormEvent) => {
+      e.preventDefault();
+
+      const supplier = suppliers.find(s => s.id === newIntake.supplierId);
+      if (!supplier || !newIntake.quantityLiters) {
+         alert("Kerjuk valasszon beszallitot es adjon meg mennyiseget!");
+         return;
+      }
+
+      const selectedVehicle = vehicles.find(v => v.plateNumber === newIntake.vehiclePlate);
+      const timestamp = editingEntry?.timestamp
+         ? editingEntry.timestamp
+         : `${filterDate}T${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}:00`;
+
+      const payload = {
+         timestamp,
+         supplierId: parseInt(newIntake.supplierId, 10),
+         vehicleId: selectedVehicle?.id ?? null,
+         vehiclePlate: newIntake.vehiclePlate,
+         quantityLiters: newIntake.quantityLiters,
+         fatPercentage: newIntake.fatPercentage,
+         proteinPercentage: newIntake.proteinPercentage,
+         temperature: newIntake.temperature,
+         ph: newIntake.ph,
+         antibioticTest: newIntake.antibioticTest,
+         sampleId: newIntake.sampleId,
+         status: editingEntry?.status ?? 'APPROVED',
+         inspector: editingEntry?.inspector ?? 'Aktiv felhasznalo'
+      };
+
+      try {
+         setIsSaving(true);
+         setError(null);
+
+         if (editingEntry) {
+            await milkCollectionService.updateMilkCollection(editingEntry.id, payload);
+         } else {
+            await milkCollectionService.createMilkCollection(payload);
+         }
+
+         await loadCollections();
+         setIsAddModalOpen(false);
+         setEditingEntry(null);
+         setNewIntake(buildDefaultIntake(newIntake.vehiclePlate));
+      } catch (err) {
+         setError(err instanceof Error ? err.message : 'Hiba tortent a mentes soran');
+      } finally {
+         setIsSaving(false);
+      }
+   };
+
+   const handleEdit = (entry: MilkCollectionEntry) => {
+      setEditingEntry(entry);
+      setNewIntake({
+         supplierId: entry.supplierId.toString(),
+         vehiclePlate: entry.vehiclePlate,
+         quantityLiters: entry.quantityLiters,
+         fatPercentage: entry.fatPercentage,
+         proteinPercentage: entry.proteinPercentage,
+         temperature: entry.temperature,
+         ph: entry.ph,
+         antibioticTest: entry.antibioticTest,
+         sampleId: entry.sampleId
+      });
+      setIsAddModalOpen(true);
+   };
+
+   const handleDelete = async (entryId: number) => {
+      if (!window.confirm('Biztosan torolni szeretned ezt az atvetelt?')) {
+         return;
+      }
+
+      try {
+         setIsSaving(true);
+         await milkCollectionService.deleteMilkCollection(entryId);
+         await loadCollections();
+      } catch (err) {
+         setError(err instanceof Error ? err.message : 'Hiba tortent a torles soran');
+      } finally {
+         setIsSaving(false);
+      }
+   };
+
+   const handleMonthlyValueChange = (farmerId: number, field: keyof MonthlyCollectionSummary, value: string) => {
+      const val = parseFloat(value) || 0;
+      setMonthlySummaries(prev => {
+         const existingIdx = prev.findIndex(s => s.supplierId === farmerId && s.month === filterMonth);
+         if (existingIdx > -1) {
+            const updated = [...prev];
+            updated[existingIdx] = { ...updated[existingIdx], [field]: val };
+            return updated;
+         }
+
+         const newItem: MonthlyCollectionSummary = {
+            id: 0,
+            month: filterMonth,
+            supplierId: farmerId,
+            collectionPointId: selectedPointId ? parseInt(selectedPointId, 10) : undefined,
+            totalLiters: field === 'totalLiters' ? val : 0,
+            avgFat: field === 'avgFat' ? val : 3.5,
+            avgProtein: field === 'avgProtein' ? val : 3.2,
+            status: 'DRAFT'
+         };
+         return [...prev, newItem];
+      });
+   };
+
+   const getMonthlyData = (farmerId: number) => {
+      return (
+         monthlySummaries.find(s => s.supplierId === farmerId && s.month === filterMonth) ||
+         { totalLiters: 0, avgFat: 3.5, avgProtein: 3.2, status: 'DRAFT' as const }
+      );
+   };
+
+   const handleSaveMonthlySummaries = async () => {
+      if (!selectedPointId) {
+         return;
+      }
+
+      try {
+         setIsSaving(true);
+         const items = farmersInPoint.map(farmer => {
+            const data = getMonthlyData(parseInt(farmer.id, 10));
+            return {
+               supplierId: parseInt(farmer.id, 10),
+               totalLiters: data.totalLiters,
+               avgFat: data.avgFat,
+               avgProtein: data.avgProtein,
+               status: data.status
+            };
+         });
+
+         const updated = await milkCollectionService.saveMonthlySummaries(filterMonth, parseInt(selectedPointId, 10), items);
+         setMonthlySummaries(updated.map(item => ({
+            id: item.id,
+            month: item.month,
+            supplierId: item.supplierId,
+            collectionPointId: item.collectionPointId,
+            totalLiters: item.totalLiters,
+            avgFat: item.avgFat,
+            avgProtein: item.avgProtein,
+            status: item.status
+         })));
+      } catch (err) {
+         setError(err instanceof Error ? err.message : 'Hiba tortent a havi mentes soran');
+      } finally {
+         setIsSaving(false);
+      }
+   };
+
+   const handleFinalizeMonthlySummaries = async () => {
+      if (!selectedPointId) {
+         return;
+      }
+
+      try {
+         setIsSaving(true);
+         await milkCollectionService.finalizeMonthlySummaries(filterMonth, parseInt(selectedPointId, 10));
+         await loadMonthlySummaries();
+      } catch (err) {
+         setError(err instanceof Error ? err.message : 'Hiba tortent a veglegesites soran');
+      } finally {
+         setIsSaving(false);
+      }
+   };
+
+   const openNewIntakeModal = () => {
+      setEditingEntry(null);
+      setNewIntake(buildDefaultIntake(vehicles[0]?.plateNumber));
+      setIsAddModalOpen(true);
+   };
+
+   const closeIntakeModal = () => {
+      setIsAddModalOpen(false);
+      setEditingEntry(null);
+      setNewIntake(buildDefaultIntake(newIntake.vehiclePlate));
+   };
 
   return (
     <div className="animate-fade-in space-y-6">
+         {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl">
+               <strong>Hiba:</strong> {error}
+            </div>
+         )}
       
       {/* HEADER & VIEW SELECTOR */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 rounded-xl shadow-sm border border-slate-100">
@@ -270,8 +480,8 @@ const DailyCollection: React.FC = () => {
                    />
                 </div>
               </div>
-              <button 
-                onClick={() => setIsAddModalOpen(true)}
+                     <button 
+                        onClick={openNewIntakeModal}
                 className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl text-sm font-black flex items-center gap-2 shadow-lg shadow-blue-600/20 transition active:scale-95"
               >
                  <Plus size={18} /> Új Átvétel Rögzítése
@@ -328,8 +538,8 @@ const DailyCollection: React.FC = () => {
                            </td>
                            <td className="px-6 py-4 text-right">
                               <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                 <button className="p-2 text-slate-400 hover:text-blue-600 transition"><Edit2 size={16}/></button>
-                                 <button className="p-2 text-slate-400 hover:text-red-600 transition"><Trash2 size={16}/></button>
+                                 <button onClick={() => handleEdit(entry)} className="p-2 text-slate-400 hover:text-blue-600 transition"><Edit2 size={16}/></button>
+                                 <button onClick={() => handleDelete(entry.id)} className="p-2 text-slate-400 hover:text-red-600 transition"><Trash2 size={16}/></button>
                               </div>
                            </td>
                         </tr>
@@ -357,11 +567,13 @@ const DailyCollection: React.FC = () => {
                  <div className="flex items-center gap-3">
                     <div className="p-2 bg-blue-600 rounded-lg shadow-inner"><Plus size={20} /></div>
                     <div>
-                       <h3 className="font-bold text-lg leading-none mb-1">Új Tejátvétel Rögzítése</h3>
-                       <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{filterDate} • {newIntake.sampleId}</p>
+                                  <h3 className="font-bold text-lg leading-none mb-1">
+                                     {editingEntry ? 'Tejátvétel Szerkesztése' : 'Új Tejátvétel Rögzítése'}
+                                  </h3>
+                                  <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">{filterDate} • {newIntake.sampleId}</p>
                     </div>
                  </div>
-                 <button onClick={() => setIsAddModalOpen(false)} className="hover:bg-slate-700 p-1.5 rounded-lg transition"><X size={24}/></button>
+                 <button onClick={closeIntakeModal} className="hover:bg-slate-700 p-1.5 rounded-lg transition"><X size={24}/></button>
               </div>
 
               {/* Form Body */}
@@ -382,7 +594,7 @@ const DailyCollection: React.FC = () => {
                             className="w-full border border-slate-200 rounded-xl px-4 py-2.5 bg-slate-50 font-bold focus:ring-2 focus:ring-blue-500 outline-none"
                           >
                              <option value="">Válasszon...</option>
-                             {MOCK_SUPPLIERS.map(s => <option key={s.id} value={s.id}>{s.name} ({s.type})</option>)}
+                             {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                           </select>
                        </div>
                        <div>
@@ -392,7 +604,8 @@ const DailyCollection: React.FC = () => {
                             onChange={(e) => setNewIntake({...newIntake, vehiclePlate: e.target.value})}
                             className="w-full border border-slate-200 rounded-xl px-4 py-2.5 bg-slate-50 font-bold focus:ring-2 focus:ring-blue-500 outline-none"
                           >
-                             {MOCK_VEHICLES.map(v => <option key={v} value={v}>{v}</option>)}
+                             {vehicles.length === 0 && <option value="">Nincs elerheto jarmu</option>}
+                             {vehicles.map(v => <option key={v.id} value={v.plateNumber}>{v.plateNumber}</option>)}
                           </select>
                        </div>
                     </div>
@@ -479,15 +692,15 @@ const DailyCollection: React.FC = () => {
 
               {/* Modal Footer */}
               <div className="bg-slate-50 p-5 border-t border-slate-100 flex gap-4 shrink-0">
-                 <button onClick={() => setIsAddModalOpen(false)} className="flex-1 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl transition hover:bg-slate-100">Mégse</button>
+                         <button onClick={closeIntakeModal} className="flex-1 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl transition hover:bg-slate-100">Mégse</button>
                  <button 
                   onClick={handleSaveIntake}
-                  disabled={newIntake.antibioticTest === 'POSITIVE'}
+                           disabled={newIntake.antibioticTest === 'POSITIVE' || isSaving}
                   className={`flex-1 py-3 font-black text-white rounded-xl shadow-lg transition flex items-center justify-center gap-2
-                    ${newIntake.antibioticTest === 'POSITIVE' ? 'bg-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/30 active:scale-95'}
+                              ${newIntake.antibioticTest === 'POSITIVE' || isSaving ? 'bg-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/30 active:scale-95'}
                   `}
                  >
-                    <Save size={20} /> Átvétel Rögzítése
+                    <Save size={20} /> {editingEntry ? 'Mentés' : 'Átvétel Rögzítése'}
                  </button>
               </div>
            </div>
@@ -535,7 +748,7 @@ const DailyCollection: React.FC = () => {
                        <h4 className="font-bold text-slate-800">Tagok Listája - {collectionPoints.find(p => p.id === selectedPointId)?.name}</h4>
                        <p className="text-xs text-slate-400 uppercase font-black tracking-wider mt-1">{filterMonth} időszak</p>
                     </div>
-                    <button className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-xl text-sm font-bold shadow-lg shadow-emerald-600/20 transition flex items-center gap-2">
+                    <button onClick={handleFinalizeMonthlySummaries} disabled={isSaving} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-xl text-sm font-bold shadow-lg shadow-emerald-600/20 transition flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
                        <CheckCircle size={18} /> Összesítő Véglegesítése
                     </button>
                  </div>
@@ -554,7 +767,7 @@ const DailyCollection: React.FC = () => {
                        </thead>
                        <tbody className="divide-y divide-slate-50">
                           {farmersInPoint.map(farmer => {
-                             const data = getMonthlyData(farmer.id);
+                                           const data = getMonthlyData(parseInt(farmer.id, 10));
                              return (
                                <tr key={farmer.id} className="hover:bg-blue-50/30 transition group">
                                   <td className="px-6 py-4">
@@ -570,7 +783,7 @@ const DailyCollection: React.FC = () => {
                                      <input 
                                        type="number"
                                        value={data.totalLiters || ''}
-                                       onChange={(e) => handleMonthlyValueChange(farmer.id, 'totalLiters', e.target.value)}
+                                                          onChange={(e) => handleMonthlyValueChange(parseInt(farmer.id, 10), 'totalLiters', e.target.value)}
                                        className="w-24 mx-auto block text-center px-2 py-1.5 border border-slate-200 rounded-lg font-black text-blue-700 focus:ring-2 focus:ring-blue-500 outline-none"
                                        placeholder="0"
                                      />
@@ -580,7 +793,7 @@ const DailyCollection: React.FC = () => {
                                        type="number"
                                        step="0.1"
                                        value={data.avgFat}
-                                       onChange={(e) => handleMonthlyValueChange(farmer.id, 'avgFat', e.target.value)}
+                                                          onChange={(e) => handleMonthlyValueChange(parseInt(farmer.id, 10), 'avgFat', e.target.value)}
                                        className="w-20 mx-auto block text-center px-2 py-1.5 border border-slate-200 rounded-lg font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none"
                                      />
                                   </td>
@@ -589,7 +802,7 @@ const DailyCollection: React.FC = () => {
                                        type="number"
                                        step="0.1"
                                        value={data.avgProtein}
-                                       onChange={(e) => handleMonthlyValueChange(farmer.id, 'avgProtein', e.target.value)}
+                                                          onChange={(e) => handleMonthlyValueChange(parseInt(farmer.id, 10), 'avgProtein', e.target.value)}
                                        className="w-20 mx-auto block text-center px-2 py-1.5 border border-slate-200 rounded-lg font-bold text-slate-700 focus:ring-2 focus:ring-blue-500 outline-none"
                                      />
                                   </td>
@@ -610,7 +823,7 @@ const DailyCollection: React.FC = () => {
                        <div>
                           <p className="text-[10px] text-slate-400 font-black uppercase">Csarnok összesen</p>
                           <p className="text-xl font-black text-slate-800">
-                             {farmersInPoint.reduce((acc, f) => acc + (getMonthlyData(f.id).totalLiters || 0), 0).toLocaleString()} L
+                             {farmersInPoint.reduce((acc, f) => acc + (getMonthlyData(parseInt(f.id, 10)).totalLiters || 0), 0).toLocaleString()} L
                           </p>
                        </div>
                        <div>
@@ -619,7 +832,7 @@ const DailyCollection: React.FC = () => {
                        </div>
                     </div>
                     <div className="flex items-center gap-3">
-                       <button className="px-6 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-200 transition">Ideiglenes Mentés</button>
+                       <button onClick={handleSaveMonthlySummaries} disabled={isSaving} className="px-6 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-200 transition disabled:opacity-60 disabled:cursor-not-allowed">Ideiglenes Mentés</button>
                     </div>
                  </div>
               </div>

@@ -25,6 +25,8 @@ public class BomilactDbContext : DbContext
     public DbSet<Vehicle> Vehicles { get; set; }
     public DbSet<VehicleCompartment> VehicleCompartments { get; set; }
     public DbSet<WashLog> WashLogs { get; set; }
+    public DbSet<MilkCollectionEntry> MilkCollectionEntries { get; set; }
+    public DbSet<MilkCollectionSummary> MilkCollectionSummaries { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -46,6 +48,8 @@ public class BomilactDbContext : DbContext
         modelBuilder.Entity<SupplierGroup>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<Vehicle>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<WashLog>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<MilkCollectionEntry>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<MilkCollectionSummary>().HasQueryFilter(e => !e.IsDeleted);
 
         // User configuration
         modelBuilder.Entity<User>(entity =>
@@ -255,6 +259,49 @@ public class BomilactDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.PerformedBy).HasMaxLength(200).IsRequired();
             entity.Property(e => e.Chemicals).HasMaxLength(500);
+        });
+
+        modelBuilder.Entity<MilkCollectionEntry>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.SampleId).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.VehiclePlate).HasMaxLength(20);
+            entity.Property(e => e.QuantityLiters).HasPrecision(18, 3);
+            entity.Property(e => e.FatPercentage).HasPrecision(5, 2);
+            entity.Property(e => e.ProteinPercentage).HasPrecision(5, 2);
+            entity.Property(e => e.TemperatureC).HasPrecision(5, 2);
+            entity.Property(e => e.Ph).HasPrecision(4, 2);
+            entity.Property(e => e.InspectorName).HasMaxLength(200);
+
+            entity.HasOne(e => e.Partner)
+                .WithMany()
+                .HasForeignKey(e => e.PartnerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(e => e.Vehicle)
+                .WithMany()
+                .HasForeignKey(e => e.VehicleId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<MilkCollectionSummary>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Month).HasColumnType("date");
+            entity.Property(e => e.TotalLiters).HasPrecision(18, 3);
+            entity.Property(e => e.AvgFat).HasPrecision(5, 2);
+            entity.Property(e => e.AvgProtein).HasPrecision(5, 2);
+            entity.HasIndex(e => new { e.Month, e.SupplierId, e.CollectionPointId }).IsUnique();
+
+            entity.HasOne(e => e.Supplier)
+                .WithMany()
+                .HasForeignKey(e => e.SupplierId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(e => e.CollectionPoint)
+                .WithMany()
+                .HasForeignKey(e => e.CollectionPointId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 
