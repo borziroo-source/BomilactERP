@@ -5,6 +5,8 @@ VisualStudioVersion = 17.11.35208.52
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BomilactERP.api", "BomilactERP.api.csproj", "{53D2441E-DE22-4331-B111-18AC6D2E67BF}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BomilactERP.Tests", "Tests\BomilactERP.Tests.csproj", "{ED0E48FE-E487-48F3-8EE3-B6DD0868E18D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +17,10 @@ Global
 		{53D2441E-DE22-4331-B111-18AC6D2E67BF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{53D2441E-DE22-4331-B111-18AC6D2E67BF}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{53D2441E-DE22-4331-B111-18AC6D2E67BF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{ED0E48FE-E487-48F3-8EE3-B6DD0868E18D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ED0E48FE-E487-48F3-8EE3-B6DD0868E18D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ED0E48FE-E487-48F3-8EE3-B6DD0868E18D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{ED0E48FE-E487-48F3-8EE3-B6DD0868E18D}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -27,6 +27,7 @@ public class BomilactDbContext : DbContext
     public DbSet<WashLog> WashLogs { get; set; }
     public DbSet<MilkCollectionEntry> MilkCollectionEntries { get; set; }
     public DbSet<MilkCollectionSummary> MilkCollectionSummaries { get; set; }
+    public DbSet<LabTest> LabTests { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -50,6 +51,7 @@ public class BomilactDbContext : DbContext
         modelBuilder.Entity<WashLog>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<MilkCollectionEntry>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<MilkCollectionSummary>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<LabTest>().HasQueryFilter(e => !e.IsDeleted);
 
         // User configuration
         modelBuilder.Entity<User>(entity =>
@@ -302,6 +304,22 @@ public class BomilactDbContext : DbContext
                 .WithMany()
                 .HasForeignKey(e => e.CollectionPointId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<LabTest>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.SampleId).HasMaxLength(50).IsRequired();
+            entity.HasIndex(e => e.SampleId).IsUnique();
+            entity.Property(e => e.SourceName).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Inspector).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Fat).HasPrecision(6, 2);
+            entity.Property(e => e.Protein).HasPrecision(6, 2);
+            entity.Property(e => e.Ph).HasPrecision(4, 2);
+            entity.Property(e => e.Density).HasPrecision(6, 4);
+            entity.Property(e => e.Water).HasPrecision(5, 2);
+            entity.Property(e => e.Scc).HasPrecision(10, 2);
+            entity.Property(e => e.Cfu).HasPrecision(10, 2);
         });
     }
 

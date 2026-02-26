@@ -4,3 +4,144 @@ GET {{BomilactERP.api_HostAddress}}/weatherforecast/
 Accept: application/json
 
 ###
+
+# ============================================================
+# LabTests endpoint tesztek
+# ============================================================
+
+### 1. GET - Összes laborvizsgálat (üres DB)
+GET {{BomilactERP.api_HostAddress}}/api/LabTests?page=1&pageSize=5
+Accept: application/json
+
+###
+
+### 2. POST - Új vizsgálat (PASS - jó paraméterek)
+POST {{BomilactERP.api_HostAddress}}/api/LabTests
+Content-Type: application/json
+
+{
+  "sampleId": "SMP-2026-0001",
+  "date": "2026-02-26T08:00:00",
+  "sourceName": "Agro Lacto Coop",
+  "type": "RAW_MILK",
+  "fat": 3.85,
+  "protein": 3.25,
+  "ph": 6.7,
+  "density": 1.030,
+  "water": 0,
+  "antibiotic": "NEGATIVE",
+  "scc": 180,
+  "cfu": 45,
+  "status": "COMPLETED",
+  "inspector": "Kovacs Laszlo",
+  "notes": "Normal beerkező tej"
+}
+
+###
+
+### 3. POST - Új vizsgálat (FAIL - antibiotikum pozitív)
+POST {{BomilactERP.api_HostAddress}}/api/LabTests
+Content-Type: application/json
+
+{
+  "sampleId": "SMP-2026-0002",
+  "date": "2026-02-26T09:00:00",
+  "sourceName": "Test Farm",
+  "type": "RAW_MILK",
+  "fat": 3.5,
+  "protein": 3.1,
+  "ph": 6.6,
+  "density": 1.029,
+  "water": 0,
+  "antibiotic": "POSITIVE",
+  "status": "COMPLETED",
+  "inspector": "Kovacs Laszlo"
+}
+
+###
+
+### 4. POST - Új vizsgálat (WARNING - alacsony sűrűség)
+POST {{BomilactERP.api_HostAddress}}/api/LabTests
+Content-Type: application/json
+
+{
+  "sampleId": "SMP-2026-0003",
+  "date": "2026-02-26T10:00:00",
+  "sourceName": "Small Farm",
+  "type": "RAW_MILK",
+  "fat": 3.2,
+  "protein": 3.0,
+  "density": 1.022,
+  "water": 0,
+  "antibiotic": "NEGATIVE",
+  "status": "PENDING",
+  "inspector": "Nagy Bela"
+}
+
+###
+
+### 5. GET - Lista szűréssel (csak RAW_MILK)
+GET {{BomilactERP.api_HostAddress}}/api/LabTests?type=RAW_MILK&page=1&pageSize=10
+Accept: application/json
+
+###
+
+### 6. GET - Keresőszóval
+GET {{BomilactERP.api_HostAddress}}/api/LabTests?searchTerm=Agro&page=1&pageSize=10
+Accept: application/json
+
+###
+
+### 7. GET - Dátum szűréssel
+GET {{BomilactERP.api_HostAddress}}/api/LabTests?dateFrom=2026-02-26&dateTo=2026-02-26&page=1&pageSize=10
+Accept: application/json
+
+###
+
+### 8. GET - ID alapján (201 válaszban visszakapott id)
+GET {{BomilactERP.api_HostAddress}}/api/LabTests/1
+Accept: application/json
+
+###
+
+### 9. GET - Nem létező ID -> 404
+GET {{BomilactERP.api_HostAddress}}/api/LabTests/9999
+Accept: application/json
+
+###
+
+### 10. PUT - Vizsgálat frissítése
+PUT {{BomilactERP.api_HostAddress}}/api/LabTests/1
+Content-Type: application/json
+
+{
+  "sampleId": "SMP-2026-0001",
+  "date": "2026-02-26T08:00:00",
+  "sourceName": "Agro Lacto Coop",
+  "type": "RAW_MILK",
+  "fat": 4.10,
+  "protein": 3.40,
+  "ph": 6.8,
+  "density": 1.031,
+  "water": 0,
+  "antibiotic": "NEGATIVE",
+  "scc": 160,
+  "cfu": 30,
+  "status": "COMPLETED",
+  "inspector": "Kovacs Laszlo",
+  "notes": "Frissített mérési adatok"
+}
+
+###
+
+### 11. DELETE - Soft delete (ID=2)
+DELETE {{BomilactERP.api_HostAddress}}/api/LabTests/2
+Accept: application/json
+
+###
+
+### 12. GET - Ellenőrzés: törölt elem nem látszik
+GET {{BomilactERP.api_HostAddress}}/api/LabTests?page=1&pageSize=10
+Accept: application/json
+
+###

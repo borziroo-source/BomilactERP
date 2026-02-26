@@ -371,6 +371,7 @@ public class SupplierGroupsController : ControllerBase
     }
 
     [HttpPost("import")]
+    [Consumes("multipart/form-data")]
     public async Task<ActionResult<ImportResult>> ImportFromExcel(IFormFile file)
     {
         try

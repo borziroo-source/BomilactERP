@@ -288,7 +288,8 @@ public class PartnersController : ControllerBase
     }
 
     [HttpPost("import-suppliers")]
-    public async Task<ActionResult<ImportSuppliersResultDto>> ImportSuppliers([FromForm] IFormFile file)
+    [Consumes("multipart/form-data")]
+    public async Task<ActionResult<ImportSuppliersResultDto>> ImportSuppliers(IFormFile file)
     {
         if (file == null || file.Length == 0)
         {
