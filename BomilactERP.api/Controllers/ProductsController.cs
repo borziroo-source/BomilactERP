@@ -1,7 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using BomilactERP.api.Data;
 using BomilactERP.api.DTOs;
 using BomilactERP.api.Models;
-using BomilactERP.api.Repositories;
 
 namespace BomilactERP.api.Controllers;
 
@@ -9,39 +10,63 @@ namespace BomilactERP.api.Controllers;
 [Route("api/[controller]")]
 public class ProductsController : ControllerBase
 {
-    private readonly IRepository<Product> _repository;
+    private readonly BomilactDbContext _context;
     private readonly ILogger<ProductsController> _logger;
 
-    public ProductsController(IRepository<Product> repository, ILogger<ProductsController> logger)
+    public ProductsController(BomilactDbContext context, ILogger<ProductsController> logger)
     {
-        _repository = repository;
+        _context = context;
         _logger = logger;
     }
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<ProductDto>>> GetAll()
+    public async Task<ActionResult<PagedResult<ProductDto>>> GetAll(
+        [FromQuery] string? searchTerm = null,
+        [FromQuery] string? category = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20)
     {
         try
         {
-            _logger.LogInformation("Fetching all products");
-            var products = await _repository.GetAllAsync();
-            var dtos = products.Select(p => new ProductDto
+            var query = _context.Products.AsNoTracking().AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(searchTerm))
             {
-                Id = p.Id,
-                Name = p.Name,
-                Description = p.Description,
-                Sku = p.Sku,
-                Price = p.Price,
-                Unit = p.Unit,
-                IsActive = p.IsActive
+                var s = searchTerm.Trim().ToLower();
+                query = query.Where(p =>
+                    p.Name.ToLower().Contains(s) ||
+                    p.Sku.ToLower().Contains(s) ||
+                    (p.SagaRefId != null && p.SagaRefId.ToLower().Contains(s)));
+            }
+
+            if (!string.IsNullOrWhiteSpace(category) && Enum.TryParse<ProductCategory>(category, true, out var cat))
+            {
+                query = query.Where(p => p.Category == cat);
+            }
+
+            query = query.OrderBy(p => p.Category).ThenBy(p => p.Name);
+
+            var totalCount = await query.CountAsync();
+
+            var products = await query
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            _logger.LogInformation("Sikeresen lekérdezve {Count}/{Total} termék (oldal: {Page}).", products.Count, totalCount, page);
+
+            return Ok(new PagedResult<ProductDto>
+            {
+                Items = products.Select(MapToDto),
+                TotalCount = totalCount,
+                Page = page,
+                PageSize = pageSize
             });
-            _logger.LogInformation("Successfully fetched {Count} products", dtos.Count());
-            return Ok(dtos);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An error occurred while fetching products");
-            return StatusCode(500, new { message = "An error occurred while processing your request" });
+            _logger.LogError(ex, "Hiba a termékek lekérésekor.");
+            return StatusCode(500, new { message = "Hiba a termékek lekérésekor." });
         }
     }
 
@@ -50,31 +75,14 @@ public class ProductsController : ControllerBase
     {
         try
         {
-            _logger.LogInformation("Fetching product with ID {ProductId}", id);
-            var product = await _repository.GetByIdAsync(id);
-            if (product == null)
-            {
-                _logger.LogWarning("Product with ID {ProductId} not found", id);
-                return NotFound();
-            }
-
-            var dto = new ProductDto
-            {
-                Id = product.Id,
-                Name = product.Name,
-                Description = product.Description,
-                Sku = product.Sku,
-                Price = product.Price,
-                Unit = product.Unit,
-                IsActive = product.IsActive
-            };
-            _logger.LogInformation("Successfully fetched product with ID {ProductId}", id);
-            return Ok(dto);
+            var product = await _context.Products.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id);
+            if (product == null) return NotFound();
+            return Ok(MapToDto(product));
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An error occurred while fetching product with ID {ProductId}", id);
-            return StatusCode(500, new { message = "An error occurred while processing your request" });
+            _logger.LogError(ex, "Hiba a termék lekérésekor (ID: {Id}).", id);
+            return StatusCode(500, new { message = "Hiba a termék lekérésekor." });
         }
     }
 
@@ -83,35 +91,41 @@ public class ProductsController : ControllerBase
     {
         try
         {
-            _logger.LogInformation("Creating new product with SKU {Sku}", dto.Sku);
+            if (string.IsNullOrWhiteSpace(dto.Sku) || string.IsNullOrWhiteSpace(dto.Name))
+                return BadRequest(new { message = "A Cikkszám (SKU) és a Megnevezés megadása kötelező." });
+
+            var skuExists = await _context.Products.AnyAsync(p => p.Sku == dto.Sku);
+            if (skuExists)
+                return Conflict(new { message = $"A megadott Cikkszám ({dto.Sku}) már létezik." });
+
             var product = new Product
             {
                 Name = dto.Name,
                 Description = dto.Description,
                 Sku = dto.Sku,
                 Price = dto.Price,
-                Unit = dto.Unit
+                Unit = dto.Uom,
+                Uom = dto.Uom,
+                Category = ParseCategory(dto.Category),
+                WeightNetKg = dto.WeightNetKg,
+                MinStockThreshold = dto.MinStockThreshold,
+                SagaRefId = dto.SagaRefId,
+                ShelfLifeDays = dto.ShelfLifeDays,
+                StorageTempMin = dto.StorageTempMin,
+                StorageTempMax = dto.StorageTempMax,
+                CreatedAt = DateTime.UtcNow
             };
 
-            var created = await _repository.CreateAsync(product);
-            var resultDto = new ProductDto
-            {
-                Id = created.Id,
-                Name = created.Name,
-                Description = created.Description,
-                Sku = created.Sku,
-                Price = created.Price,
-                Unit = created.Unit,
-                IsActive = created.IsActive
-            };
+            _context.Products.Add(product);
+            await _context.SaveChangesAsync();
 
-            _logger.LogInformation("Successfully created product with ID {ProductId}", created.Id);
-            return CreatedAtAction(nameof(GetById), new { id = created.Id }, resultDto);
+            _logger.LogInformation("Termék létrehozva (ID: {Id}, SKU: {Sku}).", product.Id, product.Sku);
+            return CreatedAtAction(nameof(GetById), new { id = product.Id }, MapToDto(product));
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An error occurred while creating product");
-            return StatusCode(500, new { message = "An error occurred while processing your request" });
+            _logger.LogError(ex, "Hiba a termék létrehozásakor.");
+            return StatusCode(500, new { message = "Hiba a termék létrehozásakor." });
         }
     }
 
@@ -120,30 +134,40 @@ public class ProductsController : ControllerBase
     {
         try
         {
-            _logger.LogInformation("Updating product with ID {ProductId}", id);
-            var product = await _repository.GetByIdAsync(id);
-            if (product == null)
-            {
-                _logger.LogWarning("Product with ID {ProductId} not found for update", id);
-                return NotFound();
-            }
+            var product = await _context.Products.FindAsync(id);
+            if (product == null) return NotFound();
+
+            if (string.IsNullOrWhiteSpace(dto.Sku) || string.IsNullOrWhiteSpace(dto.Name))
+                return BadRequest(new { message = "A Cikkszám (SKU) és a Megnevezés megadása kötelező." });
+
+            var skuExists = await _context.Products.AnyAsync(p => p.Sku == dto.Sku && p.Id != id);
+            if (skuExists)
+                return Conflict(new { message = $"A megadott Cikkszám ({dto.Sku}) már létezik." });
 
             product.Name = dto.Name;
             product.Description = dto.Description;
             product.Sku = dto.Sku;
             product.Price = dto.Price;
-            product.Unit = dto.Unit;
+            product.Unit = dto.Uom;
+            product.Uom = dto.Uom;
+            product.Category = ParseCategory(dto.Category);
+            product.WeightNetKg = dto.WeightNetKg;
+            product.MinStockThreshold = dto.MinStockThreshold;
+            product.SagaRefId = dto.SagaRefId;
+            product.ShelfLifeDays = dto.ShelfLifeDays;
+            product.StorageTempMin = dto.StorageTempMin;
+            product.StorageTempMax = dto.StorageTempMax;
             product.IsActive = dto.IsActive;
             product.UpdatedAt = DateTime.UtcNow;
 
-            await _repository.UpdateAsync(product);
-            _logger.LogInformation("Successfully updated product with ID {ProductId}", id);
+            await _context.SaveChangesAsync();
+            _logger.LogInformation("Termék frissítve (ID: {Id}).", id);
             return NoContent();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An error occurred while updating product with ID {ProductId}", id);
-            return StatusCode(500, new { message = "An error occurred while processing your request" });
+            _logger.LogError(ex, "Hiba a termék frissítésekor (ID: {Id}).", id);
+            return StatusCode(500, new { message = "Hiba a termék frissítésekor." });
         }
     }
 
@@ -152,21 +176,39 @@ public class ProductsController : ControllerBase
     {
         try
         {
-            _logger.LogInformation("Deleting product with ID {ProductId}", id);
-            var success = await _repository.DeleteAsync(id);
-            if (!success)
-            {
-                _logger.LogWarning("Product with ID {ProductId} not found for deletion", id);
-                return NotFound();
-            }
+            var product = await _context.Products.FindAsync(id);
+            if (product == null) return NotFound();
 
-            _logger.LogInformation("Successfully deleted product with ID {ProductId}", id);
+            _context.Products.Remove(product);
+            await _context.SaveChangesAsync();
+            _logger.LogInformation("Termék törölve (ID: {Id}).", id);
             return NoContent();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An error occurred while deleting product with ID {ProductId}", id);
-            return StatusCode(500, new { message = "An error occurred while processing your request" });
+            _logger.LogError(ex, "Hiba a termék törlésekor (ID: {Id}).", id);
+            return StatusCode(500, new { message = "Hiba a termék törlésekor." });
         }
     }
+
+    private static ProductDto MapToDto(Product p) => new()
+    {
+        Id = p.Id,
+        Name = p.Name,
+        Description = p.Description,
+        Sku = p.Sku,
+        Price = p.Price,
+        Uom = p.Uom,
+        Category = p.Category.ToString(),
+        WeightNetKg = p.WeightNetKg,
+        MinStockThreshold = p.MinStockThreshold,
+        SagaRefId = p.SagaRefId,
+        ShelfLifeDays = p.ShelfLifeDays,
+        StorageTempMin = p.StorageTempMin,
+        StorageTempMax = p.StorageTempMax,
+        IsActive = p.IsActive
+    };
+
+    private static ProductCategory ParseCategory(string value) =>
+        Enum.TryParse<ProductCategory>(value, true, out var result) ? result : ProductCategory.FINISHED;
 }

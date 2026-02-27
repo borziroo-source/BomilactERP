@@ -69,9 +69,12 @@ public class BomilactDbContext : DbContext
         {
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Name).HasMaxLength(200).IsRequired();
-            entity.Property(e => e.Sku).HasMaxLength(50);
+            entity.Property(e => e.Sku).HasMaxLength(50).IsRequired();
             entity.Property(e => e.Price).HasPrecision(18, 2);
             entity.HasIndex(e => e.Sku).IsUnique();
+            entity.Property(e => e.Uom).HasMaxLength(20);
+            entity.Property(e => e.WeightNetKg).HasPrecision(10, 4);
+            entity.Property(e => e.SagaRefId).HasMaxLength(50);
         });
 
         // Partner configuration

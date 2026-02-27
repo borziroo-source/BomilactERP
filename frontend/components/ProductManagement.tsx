@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   Search, 
   Plus, 
@@ -11,97 +11,84 @@ import {
   Database,
   Thermometer,
   Calendar,
-  Scale
+  Scale,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { Product, ProductCategory } from '../types';
+import { fetchProducts, createProduct, updateProduct, deleteProduct, ProductInput } from '../services/products';
 
-// Expanded Mock Data
-const INITIAL_PRODUCTS: Product[] = [
-  // --- KÉSZTERMÉKEK (FINISHED) - 18 db ---
-  { id: 'f1', sku: 'RUC-SMK-450', name: 'Cașcaval Rucăr Füstölt 450g', category: ProductCategory.FINISHED, uom: 'db', weightNetKg: 0.45, shelfLifeDays: 60, minStockThreshold: 100, storageTempMin: 2, storageTempMax: 8, sagaRefId: '300101' },
-  { id: 'f2', sku: 'RUC-NAT-450', name: 'Cașcaval Rucăr Natúr 450g', category: ProductCategory.FINISHED, uom: 'db', weightNetKg: 0.45, shelfLifeDays: 60, minStockThreshold: 150, storageTempMin: 2, storageTempMax: 8, sagaRefId: '300102' },
-  { id: 'f3', sku: 'DAL-NAT-450', name: 'Cașcaval Dalia 450g', category: ProductCategory.FINISHED, uom: 'db', weightNetKg: 0.45, shelfLifeDays: 60, minStockThreshold: 120, storageTempMin: 2, storageTempMax: 8, sagaRefId: '300201' },
-  { id: 'f4', sku: 'TRAP-500', name: 'Sajt Trapista 500g', category: ProductCategory.FINISHED, uom: 'db', weightNetKg: 0.50, shelfLifeDays: 45, minStockThreshold: 80, storageTempMin: 2, storageTempMax: 6, sagaRefId: '300305' },
-  { id: 'f5', sku: 'MOZZ-BLK-2KG', name: 'Mozzarella Tömb 2kg (Pizza)', category: ProductCategory.FINISHED, uom: 'db', weightNetKg: 2.0, shelfLifeDays: 30, minStockThreshold: 40, storageTempMin: 0, storageTempMax: 4, sagaRefId: '300401' },
-  { id: 'f6', sku: 'MOZZ-BALL-125', name: 'Mozzarella Golyó 125g', category: ProductCategory.FINISHED, uom: 'db', weightNetKg: 0.125, shelfLifeDays: 25, minStockThreshold: 200, storageTempMin: 0, storageTempMax: 4, sagaRefId: '300402' },
-  { id: 'f7', sku: 'TEL-COW-400', name: 'Telemea Tehén 400g', category: ProductCategory.FINISHED, uom: 'db', weightNetKg: 0.40, shelfLifeDays: 45, minStockThreshold: 100, storageTempMin: 2, storageTempMax: 6, sagaRefId: '300501' },
-  { id: 'f8', sku: 'TEL-SHP-400', name: 'Telemea Juh 400g (Vákuum)', category: ProductCategory.FINISHED, uom: 'db', weightNetKg: 0.40, shelfLifeDays: 60, minStockThreshold: 50, storageTempMin: 2, storageTempMax: 6, sagaRefId: '300502' },
-  { id: 'f9', sku: 'SC-12-350', name: 'Tejföl 12% 350g', category: ProductCategory.FINISHED, uom: 'db', weightNetKg: 0.35, shelfLifeDays: 30, minStockThreshold: 300, storageTempMin: 2, storageTempMax: 6, sagaRefId: '300601' },
-  { id: 'f10', sku: 'SC-20-350', name: 'Tejföl 20% 350g', category: ProductCategory.FINISHED, uom: 'db', weightNetKg: 0.35, shelfLifeDays: 30, minStockThreshold: 250, storageTempMin: 2, storageTempMax: 6, sagaRefId: '300602' },
-  { id: 'f11', sku: 'SC-20-850', name: 'Tejföl 20% 850g (Családi)', category: ProductCategory.FINISHED, uom: 'db', weightNetKg: 0.85, shelfLifeDays: 30, minStockThreshold: 100, storageTempMin: 2, storageTempMax: 6, sagaRefId: '300603' },
-  { id: 'f12', sku: 'YOG-NAT-150', name: 'Joghurt Natúr 150g', category: ProductCategory.FINISHED, uom: 'db', weightNetKg: 0.15, shelfLifeDays: 21, minStockThreshold: 500, storageTempMin: 2, storageTempMax: 6, sagaRefId: '300701' },
-  { id: 'f13', sku: 'YOG-DRK-330', name: 'Ivójoghurt Eper 330g', category: ProductCategory.FINISHED, uom: 'db', weightNetKg: 0.33, shelfLifeDays: 21, minStockThreshold: 200, storageTempMin: 2, storageTempMax: 6, sagaRefId: '300705' },
-  { id: 'f14', sku: 'KEFIR-330', name: 'Kefir 330g', category: ProductCategory.FINISHED, uom: 'db', weightNetKg: 0.33, shelfLifeDays: 28, minStockThreshold: 150, storageTempMin: 2, storageTempMax: 6, sagaRefId: '300801' },
-  { id: 'f15', sku: 'SANA-330', name: 'Sana 330g', category: ProductCategory.FINISHED, uom: 'db', weightNetKg: 0.33, shelfLifeDays: 28, minStockThreshold: 150, storageTempMin: 2, storageTempMax: 6, sagaRefId: '300802' },
-  { id: 'f16', sku: 'BUT-82-200', name: 'Vaj 82% 200g', category: ProductCategory.FINISHED, uom: 'db', weightNetKg: 0.20, shelfLifeDays: 45, minStockThreshold: 300, storageTempMin: 0, storageTempMax: 4, sagaRefId: '300901' },
-  { id: 'f17', sku: 'MILK-15-1L', name: 'Tej 1.5% 1L (Zacskós)', category: ProductCategory.FINISHED, uom: 'db', weightNetKg: 1.0, shelfLifeDays: 5, minStockThreshold: 1000, storageTempMin: 2, storageTempMax: 4, sagaRefId: '301001' },
-  { id: 'f18', sku: 'MILK-35-1L', name: 'Tej 3.5% 1L (ESL Dobozos)', category: ProductCategory.FINISHED, uom: 'db', weightNetKg: 1.0, shelfLifeDays: 21, minStockThreshold: 500, storageTempMin: 2, storageTempMax: 6, sagaRefId: '301002' },
+const PAGE_SIZE = 20;
 
-  // --- CSOMAGOLÓANYAGOK (PACKAGING) - 12 db ---
-  { id: 'p1', sku: 'PKG-VAC-2030', name: 'Vákuum tasak 20x30 (100mic)', category: ProductCategory.PACKAGING, uom: 'db', minStockThreshold: 5000, sagaRefId: 'MAT-005' },
-  { id: 'p2', sku: 'PKG-VAC-3040', name: 'Vákuum tasak 30x40 (120mic)', category: ProductCategory.PACKAGING, uom: 'db', minStockThreshold: 3000, sagaRefId: 'MAT-006' },
-  { id: 'p3', sku: 'PKG-CUP-350', name: 'Műanyag Pohár 350g (Tejföl)', category: ProductCategory.PACKAGING, uom: 'db', minStockThreshold: 10000, sagaRefId: 'MAT-020' },
-  { id: 'p4', sku: 'PKG-CUP-150', name: 'Műanyag Pohár 150g (Joghurt)', category: ProductCategory.PACKAGING, uom: 'db', minStockThreshold: 15000, sagaRefId: 'MAT-021' },
-  { id: 'p5', sku: 'PKG-LID-75', name: 'Alu Fedőfólia 75mm', category: ProductCategory.PACKAGING, uom: 'db', minStockThreshold: 20000, sagaRefId: 'MAT-025' },
-  { id: 'p6', sku: 'PKG-LID-95', name: 'Alu Fedőfólia 95mm', category: ProductCategory.PACKAGING, uom: 'db', minStockThreshold: 20000, sagaRefId: 'MAT-026' },
-  { id: 'p7', sku: 'PKG-BOX-CHS', name: 'Karton Doboz (Sajtgyűjtő 12db)', category: ProductCategory.PACKAGING, uom: 'db', minStockThreshold: 500, sagaRefId: 'MAT-050' },
-  { id: 'p8', sku: 'PKG-LAB-RUC', name: 'Címke Rucăr 450g', category: ProductCategory.PACKAGING, uom: 'tekercs', minStockThreshold: 10, sagaRefId: 'MAT-080' },
-  { id: 'p9', sku: 'PKG-LAB-DAL', name: 'Címke Dalia 450g', category: ProductCategory.PACKAGING, uom: 'tekercs', minStockThreshold: 10, sagaRefId: 'MAT-081' },
-  { id: 'p10', sku: 'PKG-BAG-PE', name: 'Tejes Zacskó PE 1L (Nyomott)', category: ProductCategory.PACKAGING, uom: 'tekercs', minStockThreshold: 20, sagaRefId: 'MAT-090' },
-  { id: 'p11', sku: 'PKG-SHRINK', name: 'Zsugorfólia 50cm', category: ProductCategory.PACKAGING, uom: 'kg', minStockThreshold: 50, sagaRefId: 'MAT-100' },
-  { id: 'p12', sku: 'PKG-PAL-EUR', name: 'Raklap EUR', category: ProductCategory.PACKAGING, uom: 'db', minStockThreshold: 40, sagaRefId: 'MAT-200' },
-
-  // --- ALAPANYAGOK (INGREDIENT) - 11 db ---
-  { id: 'i1', sku: 'ING-MILK-RAW', name: 'Nyers Tehéntej', category: ProductCategory.RAW_MILK, uom: 'l', minStockThreshold: 5000, storageTempMax: 4, sagaRefId: 'RAW-001' },
-  { id: 'i2', sku: 'ING-CULT-MESO', name: 'Kultúra Mesofil (Sajt)', category: ProductCategory.INGREDIENT, uom: 'csom', minStockThreshold: 20, storageTempMax: -18, sagaRefId: 'ING-101' },
-  { id: 'i3', sku: 'ING-CULT-THER', name: 'Kultúra Thermofil (Joghurt)', category: ProductCategory.INGREDIENT, uom: 'csom', minStockThreshold: 20, storageTempMax: -18, sagaRefId: 'ING-102' },
-  { id: 'i4', sku: 'ING-REN-CHYM', name: 'Oltó (Chymosin) 500ml', category: ProductCategory.INGREDIENT, uom: 'l', minStockThreshold: 5, storageTempMax: 4, sagaRefId: 'ING-105' },
-  { id: 'i5', sku: 'ING-CACL', name: 'Kalcium-klorid 33%', category: ProductCategory.INGREDIENT, uom: 'l', minStockThreshold: 50, sagaRefId: 'ING-110' },
-  { id: 'i6', sku: 'ING-SALT', name: 'Só (Ipari, jódozatlan)', category: ProductCategory.INGREDIENT, uom: 'kg', minStockThreshold: 1000, sagaRefId: 'ING-200' },
-  { id: 'i7', sku: 'ING-FRUIT-STR', name: 'Gyümölcsvelő Eper', category: ProductCategory.INGREDIENT, uom: 'kg', minStockThreshold: 200, storageTempMax: 20, sagaRefId: 'ING-301' },
-  { id: 'i8', sku: 'ING-FRUIT-PEA', name: 'Gyümölcsvelő Barack', category: ProductCategory.INGREDIENT, uom: 'kg', minStockThreshold: 200, storageTempMax: 20, sagaRefId: 'ING-302' },
-  { id: 'i9', sku: 'ING-SUGAR', name: 'Kristálycukor', category: ProductCategory.INGREDIENT, uom: 'kg', minStockThreshold: 500, sagaRefId: 'ING-400' },
-  { id: 'i10', sku: 'ING-STARCH', name: 'Módosított Keményítő', category: ProductCategory.INGREDIENT, uom: 'kg', minStockThreshold: 100, sagaRefId: 'ING-500' },
-  { id: 'i11', sku: 'ING-SMK-LIQ', name: 'Füst Aroma (Folyékony)', category: ProductCategory.INGREDIENT, uom: 'l', minStockThreshold: 10, sagaRefId: 'ING-600' },
-
-  // --- FÉLKÉSZ TERMÉKEK (WIP) - 16 db ---
-  { id: 'w1', sku: 'WIP-MILK-PAST', name: 'Pasztőrözött Tej (Sajt Alap)', category: ProductCategory.WIP, uom: 'l', minStockThreshold: 0, storageTempMax: 6 },
-  { id: 'w2', sku: 'WIP-MILK-YOG', name: 'Pasztőrözött Tej (Joghurt Alap)', category: ProductCategory.WIP, uom: 'l', minStockThreshold: 0, storageTempMax: 6 },
-  { id: 'w3', sku: 'WIP-CURD-RUC', name: 'Alvadék (Rucăr)', category: ProductCategory.WIP, uom: 'kg', minStockThreshold: 0 },
-  { id: 'w4', sku: 'WIP-CURD-TEL', name: 'Alvadék (Telemea)', category: ProductCategory.WIP, uom: 'kg', minStockThreshold: 0 },
-  { id: 'w5', sku: 'WIP-CHS-PRESS-RUC', name: 'Préselt Sajt Rucăr (Friss)', category: ProductCategory.WIP, uom: 'db', weightNetKg: 0.5, minStockThreshold: 0 },
-  { id: 'w6', sku: 'WIP-CHS-PRESS-DAL', name: 'Préselt Sajt Dalia (Friss)', category: ProductCategory.WIP, uom: 'db', weightNetKg: 0.5, minStockThreshold: 0 },
-  { id: 'w7', sku: 'WIP-CHS-SALT-RUC', name: 'Sózott Sajt Rucăr (24h)', category: ProductCategory.WIP, uom: 'db', weightNetKg: 0.48, minStockThreshold: 0 },
-  { id: 'w8', sku: 'WIP-MAT-RUC-1W', name: 'Érlelés alatt: Rucăr (1 hét)', category: ProductCategory.WIP, uom: 'db', weightNetKg: 0.47, minStockThreshold: 0, storageTempMax: 12 },
-  { id: 'w9', sku: 'WIP-MAT-RUC-2W', name: 'Érlelés alatt: Rucăr (2 hét)', category: ProductCategory.WIP, uom: 'db', weightNetKg: 0.46, minStockThreshold: 0, storageTempMax: 12 },
-  { id: 'w10', sku: 'WIP-MAT-DAL-1W', name: 'Érlelés alatt: Dalia (1 hét)', category: ProductCategory.WIP, uom: 'db', weightNetKg: 0.47, minStockThreshold: 0, storageTempMax: 12 },
-  { id: 'w11', sku: 'WIP-MAT-DAL-3W', name: 'Érlelés alatt: Dalia (3 hét)', category: ProductCategory.WIP, uom: 'db', weightNetKg: 0.45, minStockThreshold: 0, storageTempMax: 12 },
-  { id: 'w12', sku: 'WIP-MAT-TRAP-1M', name: 'Érlelés alatt: Trapista (1 hónap)', category: ProductCategory.WIP, uom: 'db', weightNetKg: 0.5, minStockThreshold: 0, storageTempMax: 12 },
-  { id: 'w13', sku: 'WIP-CURD-COTT', name: 'Túró alap (Szikkasztás)', category: ProductCategory.WIP, uom: 'kg', minStockThreshold: 0, storageTempMax: 4 },
-  { id: 'w14', sku: 'WIP-TANK-SC', name: 'Tejföl Érlelés (Tank A)', category: ProductCategory.WIP, uom: 'l', minStockThreshold: 0, storageTempMax: 24 },
-  { id: 'w15', sku: 'WIP-TANK-YOG', name: 'Joghurt Érlelés (Tank B)', category: ProductCategory.WIP, uom: 'l', minStockThreshold: 0, storageTempMax: 42 },
-  { id: 'w16', sku: 'WIP-BLOCK-MOZZ', name: 'Mozzarella Blokk (Vágatlan)', category: ProductCategory.WIP, uom: 'kg', minStockThreshold: 0, storageTempMax: 4 }
-];
 
 const ProductManagement: React.FC = () => {
-  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentProduct, setCurrentProduct] = useState<Partial<Product>>({});
   const [isEditing, setIsEditing] = useState(false);
   const [warningMsg, setWarningMsg] = useState<string | null>(null);
 
-  // Filter
-  const filteredProducts = products.filter(p => 
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.sagaRefId?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const searchRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const loadProducts = useCallback(async (page: number, search: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await fetchProducts({ page, pageSize: PAGE_SIZE, searchTerm: search });
+      const mapped: Product[] = result.items.map(dto => ({
+        id: dto.id.toString(),
+        sku: dto.sku,
+        name: dto.name,
+        category: dto.category as ProductCategory,
+        uom: dto.uom,
+        weightNetKg: dto.weightNetKg ?? undefined,
+        minStockThreshold: dto.minStockThreshold ?? undefined,
+        sagaRefId: dto.sagaRefId ?? undefined,
+        shelfLifeDays: dto.shelfLifeDays ?? undefined,
+        storageTempMin: dto.storageTempMin ?? undefined,
+        storageTempMax: dto.storageTempMax ?? undefined,
+      }));
+      setProducts(mapped);
+      setTotalCount(result.totalCount);
+      setTotalPages(result.totalPages);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Hiba a termékek betöltésekor.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadProducts(currentPage, searchTerm);
+  }, [currentPage, loadProducts]);
+
+  // Debounced search — resets to page 1
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    if (searchRef.current) clearTimeout(searchRef.current);
+    searchRef.current = setTimeout(() => {
+      setCurrentPage(1);
+      loadProducts(1, value);
+    }, 400);
+  };
 
   // Handlers
-  const handleDelete = (id: string) => {
-    if (window.confirm('Biztosan törölni szeretnéd ezt a terméket?')) {
-      setProducts(products.filter(p => p.id !== id));
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Biztosan törölni szeretnéd ezt a terméket?')) return;
+    try {
+      await deleteProduct(Number(id));
+      // If last item on page, go back one page
+      const newPage = products.length === 1 && currentPage > 1 ? currentPage - 1 : currentPage;
+      setCurrentPage(newPage);
+      loadProducts(newPage, searchTerm);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Hiba a törléskor.');
     }
   };
 
@@ -131,39 +118,37 @@ const ProductManagement: React.FC = () => {
       setWarningMsg('A Cikkszám (SKU), Név és Mértékegység (UOM) kitöltése kötelező!');
       return false;
     }
-
-    // 2. Duplicate Check
-    const isDuplicateSKU = products.some(p => p.sku === product.sku && p.id !== product.id);
-    if (isDuplicateSKU) {
-      setWarningMsg(`A megadott Cikkszám (${product.sku}) már létezik!`);
-      return false;
-    }
-
-    // 3. Duplicate Name Warning (Weak check)
-    const isSimilarName = products.some(p => p.name.toLowerCase() === product.name?.toLowerCase() && p.id !== product.id);
-    if (isSimilarName && !warningMsg) {
-       // This is just a warning, normally we'd ask confirmation, but for now we block to force unique names or let user bypass in a real app
-       setWarningMsg('Figyelem: Ilyen nevű termék már létezik. Kérlek használj egyedi elnevezést.');
-       return false;
-    }
-    
     return true;
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateProduct(currentProduct)) return;
 
-    if (isEditing && currentProduct.id) {
-      setProducts(products.map(p => p.id === currentProduct.id ? currentProduct as Product : p));
-    } else {
-      const newProduct: Product = {
-        ...currentProduct as Product,
-        id: Math.random().toString(36).substr(2, 9)
-      };
-      setProducts([...products, newProduct]);
+    const payload: ProductInput = {
+      name: currentProduct.name!,
+      sku: currentProduct.sku!,
+      uom: currentProduct.uom!,
+      category: currentProduct.category ?? ProductCategory.FINISHED,
+      weightNetKg: currentProduct.weightNetKg ?? null,
+      minStockThreshold: currentProduct.minStockThreshold ?? null,
+      sagaRefId: currentProduct.sagaRefId ?? null,
+      shelfLifeDays: currentProduct.shelfLifeDays ?? null,
+      storageTempMin: currentProduct.storageTempMin ?? null,
+      storageTempMax: currentProduct.storageTempMax ?? null,
+    };
+
+    try {
+      if (isEditing && currentProduct.id) {
+        await updateProduct(Number(currentProduct.id), payload);
+      } else {
+        await createProduct(payload);
+      }
+      setIsModalOpen(false);
+      loadProducts(currentPage, searchTerm);
+    } catch (e: unknown) {
+      setWarningMsg(e instanceof Error ? e.message : 'Hiba a mentéskor.');
     }
-    setIsModalOpen(false);
   };
 
   // Helper to render category badge
@@ -211,7 +196,7 @@ const ProductManagement: React.FC = () => {
               type="text" 
               placeholder="Keresés SKU, Név..." 
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               className="pl-10 pr-4 py-2 rounded-lg border border-slate-200 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-64"
             />
           </div>
@@ -224,6 +209,14 @@ const ProductManagement: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Error banner */}
+      {error && (
+        <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">
+          <AlertTriangle size={16} className="flex-shrink-0" />
+          {error}
+        </div>
+      )}
 
       {/* Product List */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
@@ -241,7 +234,21 @@ const ProductManagement: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredProducts.map((product) => (
+              {isLoading ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
+                    <Package size={32} className="mx-auto mb-2 opacity-30 animate-pulse" />
+                    Betöltés...
+                  </td>
+                </tr>
+              ) : products.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
+                    <Package size={32} className="mx-auto mb-2 opacity-30" />
+                    Nincs megjeleníthető termék.
+                  </td>
+                </tr>
+              ) : products.map((product) => (
                 <tr key={product.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4">
                     <div className="font-mono text-sm font-bold text-slate-700">{product.sku}</div>
@@ -311,6 +318,31 @@ const ProductManagement: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between bg-white px-4 py-3 rounded-xl shadow-sm border border-slate-100">
+          <span className="text-sm text-slate-500">
+            {totalCount} termék · {currentPage}. oldal / {totalPages}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg border border-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+            >
+              <ChevronLeft size={15} /> Előző
+            </button>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage >= totalPages}
+              className="flex items-center gap-1 px-3 py-1.5 text-sm rounded-lg border border-slate-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
+            >
+              Következő <ChevronRight size={15} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Modal Form */}
       {isModalOpen && (
