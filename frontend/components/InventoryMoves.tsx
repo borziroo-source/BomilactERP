@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { usePermission } from '../hooks/usePermission';
 import { 
   ArrowDownLeft, 
   ArrowUpRight, 
@@ -104,6 +105,7 @@ const INITIAL_MOVES: InventoryMove[] = [
 
 const InventoryMoves: React.FC = () => {
   const [moves, setMoves] = useState<InventoryMove[]>(INITIAL_MOVES);
+  const { canCreate } = usePermission('inventory', 'inv_moves');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<MovementType | 'ALL'>('ALL');
   

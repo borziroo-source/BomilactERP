@@ -1,15 +1,18 @@
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using BomilactERP.api.Models;
 
 namespace BomilactERP.api.Data;
 
-public class BomilactDbContext : DbContext
+public class BomilactDbContext : IdentityDbContext<ApplicationUser>
 {
     public BomilactDbContext(DbContextOptions<BomilactDbContext> options) : base(options)
     {
     }
 
-    public DbSet<User> Users { get; set; }
+    public DbSet<AppPermission> AppPermissions { get; set; }
+    public DbSet<RolePermission> RolePermissions { get; set; }
     public DbSet<Product> Products { get; set; }
     public DbSet<Partner> Partners { get; set; }
     public DbSet<Order> Orders { get; set; }
@@ -28,13 +31,39 @@ public class BomilactDbContext : DbContext
     public DbSet<MilkCollectionEntry> MilkCollectionEntries { get; set; }
     public DbSet<MilkCollectionSummary> MilkCollectionSummaries { get; set; }
     public DbSet<LabTest> LabTests { get; set; }
+    public DbSet<ProductionBatch> ProductionBatches { get; set; }
+    public DbSet<ProductionStep> ProductionSteps { get; set; }
+    public DbSet<ProductionBatchAlert> ProductionBatchAlerts { get; set; }
+    public DbSet<ProductionLog> ProductionLogs { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
 
-        // Global query filter for soft delete
-        modelBuilder.Entity<User>().HasQueryFilter(e => !e.IsDeleted);
+        // ApplicationUser soft delete filter
+        modelBuilder.Entity<ApplicationUser>().HasQueryFilter(e => !e.IsDeleted);
+
+        // AppPermission configuration
+        modelBuilder.Entity<AppPermission>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.ModuleId).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.SubModuleId).HasMaxLength(50);
+            entity.Property(e => e.Action).HasMaxLength(20).IsRequired();
+            entity.Property(e => e.DisplayName).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Category).HasMaxLength(100);
+            entity.HasIndex(e => new { e.ModuleId, e.SubModuleId, e.Action }).IsUnique();
+        });
+
+        // RolePermission configuration (composite key)
+        modelBuilder.Entity<RolePermission>(entity =>
+        {
+            entity.HasKey(e => new { e.RoleId, e.PermissionId });
+            entity.HasOne(e => e.Permission)
+                .WithMany(p => p.RolePermissions)
+                .HasForeignKey(e => e.PermissionId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
         modelBuilder.Entity<Product>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<Partner>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<Order>().HasQueryFilter(e => !e.IsDeleted);
@@ -52,17 +81,10 @@ public class BomilactDbContext : DbContext
         modelBuilder.Entity<MilkCollectionEntry>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<MilkCollectionSummary>().HasQueryFilter(e => !e.IsDeleted);
         modelBuilder.Entity<LabTest>().HasQueryFilter(e => !e.IsDeleted);
-
-        // User configuration
-        modelBuilder.Entity<User>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.HasIndex(e => e.Username).IsUnique();
-            entity.HasIndex(e => e.Email).IsUnique();
-            entity.Property(e => e.Username).HasMaxLength(50).IsRequired();
-            entity.Property(e => e.Email).HasMaxLength(100).IsRequired();
-            entity.Property(e => e.PasswordHash).IsRequired();
-        });
+        modelBuilder.Entity<ProductionBatch>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<ProductionStep>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<ProductionBatchAlert>().HasQueryFilter(e => !e.IsDeleted);
+        modelBuilder.Entity<ProductionLog>().HasQueryFilter(e => !e.IsDeleted);
 
         // Product configuration
         modelBuilder.Entity<Product>(entity =>
@@ -149,31 +171,9 @@ public class BomilactDbContext : DbContext
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
-        // Recipe configuration
-        modelBuilder.Entity<Recipe>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Name).HasMaxLength(200).IsRequired();
-            entity.Property(e => e.OutputQuantity).HasPrecision(18, 3);
-        });
+        // Recipe configuration - see below (extended)
 
-        // RecipeItem configuration
-        modelBuilder.Entity<RecipeItem>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Quantity).HasPrecision(18, 3);
-            entity.Property(e => e.Unit).HasMaxLength(20);
-            
-            entity.HasOne(e => e.Recipe)
-                .WithMany(r => r.RecipeItems)
-                .HasForeignKey(e => e.RecipeId)
-                .OnDelete(DeleteBehavior.Cascade);
-            
-            entity.HasOne(e => e.Product)
-                .WithMany(p => p.RecipeItems)
-                .HasForeignKey(e => e.ProductId)
-                .OnDelete(DeleteBehavior.Restrict);
-        });
+        // RecipeItem configuration - see below (extended)
 
         // Invoice configuration
         modelBuilder.Entity<Invoice>(entity =>
@@ -206,12 +206,7 @@ public class BomilactDbContext : DbContext
         });
 
         // ProductionPlan configuration
-        modelBuilder.Entity<ProductionPlan>(entity =>
-        {
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.PlanNumber).HasMaxLength(50).IsRequired();
-            entity.HasIndex(e => e.PlanNumber).IsUnique();
-        });
+        // ProductionPlan configuration - see extended config below
 
         // ProductionItem configuration
         modelBuilder.Entity<ProductionItem>(entity =>
@@ -220,12 +215,12 @@ public class BomilactDbContext : DbContext
             entity.Property(e => e.PlannedQuantity).HasPrecision(18, 3);
             entity.Property(e => e.ActualQuantity).HasPrecision(18, 3);
             entity.Property(e => e.LotNumber).HasMaxLength(50);
-            
+
             entity.HasOne(e => e.ProductionPlan)
-                .WithMany(pp => pp.ProductionItems)
+                .WithMany()
                 .HasForeignKey(e => e.ProductionPlanId)
                 .OnDelete(DeleteBehavior.Cascade);
-            
+
             entity.HasOne(e => e.Product)
                 .WithMany()
                 .HasForeignKey(e => e.ProductId)
@@ -323,6 +318,111 @@ public class BomilactDbContext : DbContext
             entity.Property(e => e.Water).HasPrecision(5, 2);
             entity.Property(e => e.Scc).HasPrecision(10, 2);
             entity.Property(e => e.Cfu).HasPrecision(10, 2);
+        });
+
+        // ProductionPlan configuration
+        modelBuilder.Entity<ProductionPlan>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.PlanNumber).HasMaxLength(50).IsRequired();
+            entity.HasIndex(e => e.PlanNumber).IsUnique();
+            entity.Property(e => e.ProductName).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Sku).HasMaxLength(50);
+            entity.Property(e => e.Quantity).HasPrecision(18, 3);
+            entity.Property(e => e.Uom).HasMaxLength(20);
+            entity.Property(e => e.Line).HasMaxLength(100);
+            entity.Property(e => e.Supervisor).HasMaxLength(200);
+            entity.Property(e => e.Priority).HasMaxLength(20);
+        });
+
+        // Recipe configuration
+        modelBuilder.Entity<Recipe>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.OutputQuantity).HasPrecision(18, 3);
+            entity.Property(e => e.OutputUom).HasMaxLength(20);
+            entity.Property(e => e.Version).HasMaxLength(20);
+            entity.Property(e => e.Instructions).HasColumnType("nvarchar(max)");
+
+            entity.HasOne(e => e.OutputProduct)
+                .WithMany()
+                .HasForeignKey(e => e.OutputProductId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // RecipeItem configuration
+        modelBuilder.Entity<RecipeItem>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Quantity).HasPrecision(18, 3);
+            entity.Property(e => e.Unit).HasMaxLength(20);
+            entity.Property(e => e.UnitCost).HasPrecision(18, 4);
+            entity.Property(e => e.Category).HasMaxLength(50);
+
+            entity.HasOne(e => e.Recipe)
+                .WithMany(r => r.RecipeItems)
+                .HasForeignKey(e => e.RecipeId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(e => e.Product)
+                .WithMany(p => p.RecipeItems)
+                .HasForeignKey(e => e.ProductId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ProductionBatch configuration
+        modelBuilder.Entity<ProductionBatch>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.LineId).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.LineName).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.ProductName).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.BatchNumber).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.Uom).HasMaxLength(20);
+            entity.Property(e => e.Status).HasMaxLength(20);
+            entity.Property(e => e.Quantity).HasPrecision(18, 3);
+            entity.Property(e => e.CurrentTemp).HasPrecision(6, 2);
+            entity.Property(e => e.TargetTemp).HasPrecision(6, 2);
+            entity.Property(e => e.CurrentPh).HasPrecision(4, 2);
+        });
+
+        // ProductionStep configuration
+        modelBuilder.Entity<ProductionStep>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.StepType).HasMaxLength(30);
+
+            entity.HasOne(e => e.ProductionBatch)
+                .WithMany(b => b.Steps)
+                .HasForeignKey(e => e.ProductionBatchId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ProductionBatchAlert configuration
+        modelBuilder.Entity<ProductionBatchAlert>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Message).HasMaxLength(500).IsRequired();
+
+            entity.HasOne(e => e.ProductionBatch)
+                .WithMany(b => b.Alerts)
+                .HasForeignKey(e => e.ProductionBatchId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // ProductionLog configuration
+        modelBuilder.Entity<ProductionLog>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.BatchNumber).HasMaxLength(50).IsRequired();
+            entity.Property(e => e.ProductName).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Step).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Operator).HasMaxLength(200).IsRequired();
+            entity.Property(e => e.Status).HasMaxLength(20);
+            entity.Property(e => e.Temperature).HasPrecision(6, 2);
+            entity.Property(e => e.Ph).HasPrecision(4, 2);
         });
     }
 

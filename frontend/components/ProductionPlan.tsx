@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
   Calendar, 
   Clock, 
@@ -29,107 +29,40 @@ import {
   Cell
 } from 'recharts';
 
+import { 
+  fetchProductionOrders,
+  createProductionOrder,
+  updateProductionOrder,
+  deleteProductionOrder,
+  updateOrderStatus,
+  type ProductionOrderDto,
+  type ProductionOrderInput,
+} from '../services/productionPlans';
+import { usePermission } from '../hooks/usePermission';
+
 // --- Types ---
 
 export type ProductionStatus = 'DRAFT' | 'PLANNED' | 'IN_PROGRESS' | 'COMPLETED' | 'DELAYED';
 
 export interface ProductionOrder {
-  id: string;
-  orderNumber: string; // e.g. PO-2023-001
+  id: number;
+  orderNumber: string;
   productName: string;
   sku: string;
   quantity: number;
   uom: string;
-  startDate: string; // ISO Date Time
-  endDate: string;   // ISO Date Time
-  line: string;      // e.g. "Sajt Üzem 1"
+  startDate: string;
+  endDate: string;
+  line: string;
   supervisor: string;
   status: ProductionStatus;
-  progress: number; // 0-100%
+  progress: number;
   priority: 'NORMAL' | 'HIGH';
 }
 
-// --- Mock Data ---
+// --- Mock Data removed, API is used instead ---
 
-const INITIAL_ORDERS: ProductionOrder[] = [
-  {
-    id: 'po-1',
-    orderNumber: 'PO-2310-001',
-    productName: 'Cașcaval Rucăr',
-    sku: 'RUC-NAT-450',
-    quantity: 1500,
-    uom: 'db',
-    startDate: '2023-10-27T06:00:00',
-    endDate: '2023-10-27T14:00:00',
-    line: 'Sajt Üzem A (Kád 1)',
-    supervisor: 'Kovács János',
-    status: 'IN_PROGRESS',
-    progress: 65,
-    priority: 'HIGH'
-  },
-  {
-    id: 'po-2',
-    orderNumber: 'PO-2310-002',
-    productName: 'Telemea Tehén',
-    sku: 'TEL-COW-400',
-    quantity: 800,
-    uom: 'db',
-    startDate: '2023-10-27T08:00:00',
-    endDate: '2023-10-27T12:00:00',
-    line: 'Sajt Üzem B (Kád 3)',
-    supervisor: 'Nagy Éva',
-    status: 'IN_PROGRESS',
-    progress: 40,
-    priority: 'NORMAL'
-  },
-  {
-    id: 'po-3',
-    orderNumber: 'PO-2310-003',
-    productName: 'Joghurt Natúr 150g',
-    sku: 'YOG-NAT-150',
-    quantity: 5000,
-    uom: 'db',
-    startDate: '2023-10-28T06:00:00',
-    endDate: '2023-10-28T10:00:00',
-    line: 'Joghurt Töltősor',
-    supervisor: 'Kovács János',
-    status: 'PLANNED',
-    progress: 0,
-    priority: 'NORMAL'
-  },
-  {
-    id: 'po-4',
-    orderNumber: 'PO-2310-004',
-    productName: 'Sajt Trapista',
-    sku: 'TRAP-500',
-    quantity: 600,
-    uom: 'db',
-    startDate: '2023-10-29T07:00:00',
-    endDate: '2023-10-29T15:00:00',
-    line: 'Sajt Üzem A (Kád 2)',
-    supervisor: 'Varga Péter',
-    status: 'DRAFT',
-    progress: 0,
-    priority: 'NORMAL'
-  },
-  {
-    id: 'po-5',
-    orderNumber: 'PO-2310-005',
-    productName: 'Tejföl 20%',
-    sku: 'SC-20-850',
-    quantity: 1200,
-    uom: 'db',
-    startDate: '2023-10-26T06:00:00',
-    endDate: '2023-10-26T11:00:00',
-    line: 'Joghurt Töltősor',
-    supervisor: 'Nagy Éva',
-    status: 'COMPLETED',
-    progress: 100,
-    priority: 'HIGH'
-  }
-];
-
-// Production Lines Mock
+// Production Lines
 const PRODUCTION_LINES = [
   'Sajt Üzem A (Kád 1)',
   'Sajt Üzem A (Kád 2)',
@@ -138,8 +71,27 @@ const PRODUCTION_LINES = [
   'Csomagoló Sor 1'
 ];
 
+const dtoToOrder = (dto: ProductionOrderDto): ProductionOrder => ({
+  id: dto.id,
+  orderNumber: dto.planNumber,
+  productName: dto.productName,
+  sku: dto.sku ?? '',
+  quantity: dto.quantity,
+  uom: dto.uom,
+  startDate: dto.startDate,
+  endDate: dto.endDate,
+  line: dto.line,
+  supervisor: dto.supervisor,
+  status: dto.status as ProductionStatus,
+  progress: dto.progress,
+  priority: (dto.priority as 'NORMAL' | 'HIGH') ?? 'NORMAL',
+});
+
 const ProductionPlan: React.FC = () => {
-  const [orders, setOrders] = useState<ProductionOrder[]>(INITIAL_ORDERS);
+  const [orders, setOrders] = useState<ProductionOrder[]>([]);
+  const { canCreate, canUpdate, canDelete } = usePermission('production', 'prod_plan');
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<ProductionStatus | 'ALL'>('ALL');
   
@@ -148,12 +100,30 @@ const ProductionPlan: React.FC = () => {
   const [currentOrder, setCurrentOrder] = useState<Partial<ProductionOrder>>({});
   const [isEditing, setIsEditing] = useState(false);
 
+  const loadOrders = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const data = await fetchProductionOrders();
+      setOrders(data.map(dtoToOrder));
+    } catch {
+      setError('Nem sikerült betölteni a gyártási terveket.');
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadOrders(); }, [loadOrders]);
+
   // --- Calculations ---
 
   const stats = useMemo(() => {
     const totalPlanned = orders.filter(o => o.status === 'PLANNED').length;
     const inProgress = orders.filter(o => o.status === 'IN_PROGRESS').length;
-    const completedToday = orders.filter(o => o.status === 'COMPLETED' && o.endDate.startsWith('2023-10-26')).length; // Mock today
+    const completedToday = orders.filter(o => {
+      const today = new Date().toISOString().slice(0, 10);
+      return o.status === 'COMPLETED' && o.endDate.startsWith(today);
+    }).length;
     
     // Chart Data: Orders by Line
     const lineData = orders.reduce((acc, curr) => {
@@ -202,7 +172,7 @@ const ProductionPlan: React.FC = () => {
     setCurrentOrder({
       orderNumber: `PO-${new Date().getFullYear()}${new Date().getMonth()+1}-${Math.floor(Math.random()*1000)}`,
       startDate: new Date().toISOString().slice(0, 16),
-      endDate: new Date(new Date().getTime() + 4*60*60*1000).toISOString().slice(0, 16), // +4h default
+      endDate: new Date(new Date().getTime() + 4*60*60*1000).toISOString().slice(0, 16),
       status: 'DRAFT',
       progress: 0,
       priority: 'NORMAL',
@@ -218,44 +188,72 @@ const ProductionPlan: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: number) => {
     if (window.confirm('Biztosan törölni szeretnéd ezt a gyártási rendelést?')) {
-      setOrders(prev => prev.filter(o => o.id !== id));
+      try {
+        await deleteProductionOrder(id);
+        setOrders(prev => prev.filter(o => o.id !== id));
+      } catch {
+        alert('Törlés sikertelen.');
+      }
     }
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentOrder.productName || !currentOrder.quantity) return;
 
-    const orderToSave = {
-      ...currentOrder,
-      id: currentOrder.id || `po-${Date.now()}`
-    } as ProductionOrder;
+    const payload: ProductionOrderInput = {
+      planNumber: currentOrder.orderNumber || `PO-${Date.now()}`,
+      productName: currentOrder.productName!,
+      sku: currentOrder.sku,
+      quantity: currentOrder.quantity!,
+      uom: currentOrder.uom || 'db',
+      startDate: currentOrder.startDate || new Date().toISOString(),
+      endDate: currentOrder.endDate || new Date().toISOString(),
+      line: currentOrder.line || PRODUCTION_LINES[0],
+      supervisor: currentOrder.supervisor || '',
+      status: (currentOrder.status || 'DRAFT') as ProductionOrderInput['status'],
+      progress: currentOrder.progress ?? 0,
+      priority: currentOrder.priority || 'NORMAL',
+    };
 
-    if (isEditing) {
-      setOrders(prev => prev.map(o => o.id === orderToSave.id ? orderToSave : o));
-    } else {
-      setOrders([...orders, orderToSave]);
+    try {
+      if (isEditing && currentOrder.id) {
+        await updateProductionOrder(currentOrder.id, payload);
+      } else {
+        await createProductionOrder(payload);
+      }
+      await loadOrders();
+      setIsModalOpen(false);
+    } catch {
+      alert('Mentés sikertelen.');
     }
-    setIsModalOpen(false);
   };
 
-  const handleStatusChange = (id: string, newStatus: ProductionStatus) => {
-    setOrders(prev => prev.map(o => {
-       if (o.id === id) {
+  const handleStatusChange = async (id: number, newStatus: ProductionStatus) => {
+    try {
+      await updateOrderStatus(id, newStatus);
+      setOrders(prev => prev.map(o => {
+        if (o.id === id) {
           return {
-             ...o,
-             status: newStatus,
-             progress: newStatus === 'COMPLETED' ? 100 : (newStatus === 'PLANNED' ? 0 : o.progress)
+            ...o,
+            status: newStatus,
+            progress: newStatus === 'COMPLETED' ? 100 : (newStatus === 'PLANNED' ? 0 : o.progress)
           };
-       }
-       return o;
-    }));
+        }
+        return o;
+      }));
+    } catch {
+      alert('Státuszváltás sikertelen.');
+    }
   };
 
   return (
     <div className="animate-fade-in space-y-6">
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">{error}</div>
+      )}
       
       {/* KPI Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -332,7 +330,8 @@ const ProductionPlan: React.FC = () => {
             </div>
             <button 
               onClick={handleAddNew}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-medium flex items-center transition flex-shrink-0"
+              disabled={!canCreate}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-medium flex items-center transition flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Plus size={18} className="mr-1" />
               <span className="hidden sm:inline">Új Terv</span>
@@ -343,7 +342,9 @@ const ProductionPlan: React.FC = () => {
 
       {/* Orders List */}
       <div className="space-y-4">
-         {filteredOrders.length > 0 ? (
+         {isLoading ? (
+           <div className="text-center py-12 text-slate-400">Betöltés...</div>
+         ) : filteredOrders.length > 0 ? (
            filteredOrders.map(order => (
              <div key={order.id} className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 hover:shadow-md transition-all flex flex-col lg:flex-row gap-4 items-start lg:items-center">
                 
@@ -404,7 +405,8 @@ const ProductionPlan: React.FC = () => {
                    {order.status === 'PLANNED' && (
                       <button 
                         onClick={() => handleStatusChange(order.id, 'IN_PROGRESS')}
-                        className="p-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition" 
+                        disabled={!canUpdate}
+                        className="p-2 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed" 
                         title="Indítás"
                       >
                          <Play size={18} />
@@ -413,7 +415,8 @@ const ProductionPlan: React.FC = () => {
                    {order.status === 'IN_PROGRESS' && (
                       <button 
                         onClick={() => handleStatusChange(order.id, 'COMPLETED')}
-                        className="p-2 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg transition" 
+                        disabled={!canUpdate}
+                        className="p-2 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed" 
                         title="Lezárás"
                       >
                          <CheckCircle size={18} />
@@ -421,14 +424,16 @@ const ProductionPlan: React.FC = () => {
                    )}
                    <button 
                      onClick={() => handleEdit(order)}
-                     className="p-2 text-slate-400 hover:text-blue-600 hover:bg-slate-50 rounded-lg transition" 
+                     disabled={!canUpdate}
+                     className="p-2 text-slate-400 hover:text-blue-600 hover:bg-slate-50 rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed" 
                      title="Szerkesztés"
                    >
                       <MoreVertical size={18} />
                    </button>
                    <button 
                      onClick={() => handleDelete(order.id)}
-                     className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" 
+                     disabled={!canDelete}
+                     className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed" 
                      title="Törlés"
                    >
                       <Trash2 size={18} />
@@ -596,7 +601,7 @@ const ProductionPlan: React.FC = () => {
 
                  <div className="pt-4 flex gap-3">
                     <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-medium transition">Mégse</button>
-                    <button type="submit" className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold shadow-lg shadow-blue-600/30 transition flex justify-center items-center">
+                    <button type="submit" disabled={!(isEditing ? canUpdate : canCreate)} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold shadow-lg shadow-blue-600/30 transition flex justify-center items-center disabled:opacity-40 disabled:cursor-not-allowed">
                        <Save size={18} className="mr-2" /> Mentés
                     </button>
                  </div>

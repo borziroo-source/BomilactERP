@@ -20,31 +20,29 @@ public class RecipesController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<RecipeDto>>> GetAll()
+    public async Task<ActionResult<IEnumerable<RecipeDto>>> GetAll([FromQuery] string? searchTerm = null)
     {
         try
         {
-            _logger.LogInformation("Fetching all recipes");
-            var recipes = await _context.Recipes
-                .ToListAsync();
+            var query = _context.Recipes
+                .Include(r => r.RecipeItems)
+                    .ThenInclude(ri => ri.Product)
+                .Include(r => r.OutputProduct)
+                .AsQueryable();
 
-            var dtos = recipes.Select(r => new RecipeDto
+            if (!string.IsNullOrWhiteSpace(searchTerm))
             {
-                Id = r.Id,
-                Name = r.Name,
-                Description = r.Description,
-                OutputProductId = r.OutputProductId,
-                OutputQuantity = r.OutputQuantity,
-                IsActive = r.IsActive
-            });
+                var lower = searchTerm.ToLower();
+                query = query.Where(r => r.Name.ToLower().Contains(lower));
+            }
 
-            _logger.LogInformation("Successfully fetched {Count} recipes", dtos.Count());
-            return Ok(dtos);
+            var recipes = await query.OrderBy(r => r.Name).ToListAsync();
+            return Ok(recipes.Select(MapToDto));
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An error occurred while fetching recipes");
-            return StatusCode(500, new { message = "An error occurred while processing your request" });
+            _logger.LogError(ex, "Error fetching recipes");
+            return StatusCode(500, new { message = "Hiba a receptúrák lekérésekor." });
         }
     }
 
@@ -53,31 +51,19 @@ public class RecipesController : ControllerBase
     {
         try
         {
-            _logger.LogInformation("Fetching recipe with ID {RecipeId}", id);
-            var recipe = await _context.Recipes.FindAsync(id);
-            if (recipe == null)
-            {
-                _logger.LogWarning("Recipe with ID {RecipeId} not found", id);
-                return NotFound();
-            }
+            var recipe = await _context.Recipes
+                .Include(r => r.RecipeItems)
+                    .ThenInclude(ri => ri.Product)
+                .Include(r => r.OutputProduct)
+                .FirstOrDefaultAsync(r => r.Id == id);
 
-            var dto = new RecipeDto
-            {
-                Id = recipe.Id,
-                Name = recipe.Name,
-                Description = recipe.Description,
-                OutputProductId = recipe.OutputProductId,
-                OutputQuantity = recipe.OutputQuantity,
-                IsActive = recipe.IsActive
-            };
-
-            _logger.LogInformation("Successfully fetched recipe with ID {RecipeId}", id);
-            return Ok(dto);
+            if (recipe == null) return NotFound();
+            return Ok(MapToDto(recipe));
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An error occurred while fetching recipe with ID {RecipeId}", id);
-            return StatusCode(500, new { message = "An error occurred while processing your request" });
+            _logger.LogError(ex, "Error fetching recipe {Id}", id);
+            return StatusCode(500, new { message = "Hiba a receptúra lekérésekor." });
         }
     }
 
@@ -86,35 +72,46 @@ public class RecipesController : ControllerBase
     {
         try
         {
-            _logger.LogInformation("Creating new recipe with name {RecipeName}", dto.Name);
             var recipe = new Recipe
             {
                 Name = dto.Name,
                 Description = dto.Description,
                 OutputProductId = dto.OutputProductId,
-                OutputQuantity = dto.OutputQuantity
+                OutputQuantity = dto.OutputQuantity,
+                OutputUom = dto.OutputUom,
+                Version = dto.Version,
+                Instructions = dto.Instructions,
+                Status = RecipeStatus.Draft,
+                IsActive = true
             };
+
+            foreach (var item in dto.Items)
+            {
+                recipe.RecipeItems.Add(new RecipeItem
+                {
+                    ProductId = item.ProductId,
+                    Quantity = item.Quantity,
+                    Unit = item.Unit,
+                    UnitCost = item.UnitCost,
+                    Category = item.Category
+                });
+            }
 
             _context.Recipes.Add(recipe);
             await _context.SaveChangesAsync();
 
-            var resultDto = new RecipeDto
-            {
-                Id = recipe.Id,
-                Name = recipe.Name,
-                Description = recipe.Description,
-                OutputProductId = recipe.OutputProductId,
-                OutputQuantity = recipe.OutputQuantity,
-                IsActive = recipe.IsActive
-            };
+            // Reload with navigations
+            await _context.Entry(recipe).Reference(r => r.OutputProduct).LoadAsync();
+            await _context.Entry(recipe).Collection(r => r.RecipeItems).Query()
+                .Include(ri => ri.Product).LoadAsync();
 
-            _logger.LogInformation("Successfully created recipe with ID {RecipeId}", recipe.Id);
-            return CreatedAtAction(nameof(GetById), new { id = recipe.Id }, resultDto);
+            _logger.LogInformation("Created recipe {Name}", recipe.Name);
+            return CreatedAtAction(nameof(GetById), new { id = recipe.Id }, MapToDto(recipe));
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An error occurred while creating recipe");
-            return StatusCode(500, new { message = "An error occurred while processing your request" });
+            _logger.LogError(ex, "Error creating recipe");
+            return StatusCode(500, new { message = "Hiba a receptúra létrehozásakor." });
         }
     }
 
@@ -123,31 +120,49 @@ public class RecipesController : ControllerBase
     {
         try
         {
-            _logger.LogInformation("Updating recipe with ID {RecipeId}", id);
-            var recipe = await _context.Recipes.FindAsync(id);
-            if (recipe == null)
-            {
-                _logger.LogWarning("Recipe with ID {RecipeId} not found for update", id);
-                return NotFound();
-            }
+            var recipe = await _context.Recipes
+                .Include(r => r.RecipeItems)
+                .FirstOrDefaultAsync(r => r.Id == id);
+
+            if (recipe == null) return NotFound();
 
             recipe.Name = dto.Name;
             recipe.Description = dto.Description;
             recipe.OutputProductId = dto.OutputProductId;
             recipe.OutputQuantity = dto.OutputQuantity;
+            recipe.OutputUom = dto.OutputUom;
+            recipe.Version = dto.Version;
+            recipe.Instructions = dto.Instructions;
             recipe.IsActive = dto.IsActive;
             recipe.UpdatedAt = DateTime.UtcNow;
 
-            _context.Recipes.Update(recipe);
-            await _context.SaveChangesAsync();
+            if (Enum.TryParse<RecipeStatus>(dto.Status, true, out var statusEnum))
+                recipe.Status = statusEnum;
 
-            _logger.LogInformation("Successfully updated recipe with ID {RecipeId}", id);
+            // Replace items
+            foreach (var existing in recipe.RecipeItems.ToList())
+                _context.RecipeItems.Remove(existing);
+
+            foreach (var item in dto.Items)
+            {
+                recipe.RecipeItems.Add(new RecipeItem
+                {
+                    ProductId = item.ProductId,
+                    Quantity = item.Quantity,
+                    Unit = item.Unit,
+                    UnitCost = item.UnitCost,
+                    Category = item.Category
+                });
+            }
+
+            await _context.SaveChangesAsync();
+            _logger.LogInformation("Updated recipe {Id}", id);
             return NoContent();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An error occurred while updating recipe with ID {RecipeId}", id);
-            return StatusCode(500, new { message = "An error occurred while processing your request" });
+            _logger.LogError(ex, "Error updating recipe {Id}", id);
+            return StatusCode(500, new { message = "Hiba a receptúra frissítésekor." });
         }
     }
 
@@ -156,24 +171,46 @@ public class RecipesController : ControllerBase
     {
         try
         {
-            _logger.LogInformation("Deleting recipe with ID {RecipeId}", id);
             var recipe = await _context.Recipes.FindAsync(id);
-            if (recipe == null)
-            {
-                _logger.LogWarning("Recipe with ID {RecipeId} not found for deletion", id);
-                return NotFound();
-            }
+            if (recipe == null) return NotFound();
 
             _context.Recipes.Remove(recipe);
             await _context.SaveChangesAsync();
-
-            _logger.LogInformation("Successfully deleted recipe with ID {RecipeId}", id);
+            _logger.LogInformation("Deleted recipe {Id}", id);
             return NoContent();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An error occurred while deleting recipe with ID {RecipeId}", id);
-            return StatusCode(500, new { message = "An error occurred while processing your request" });
+            _logger.LogError(ex, "Error deleting recipe {Id}", id);
+            return StatusCode(500, new { message = "Hiba a receptúra törlésekor." });
         }
     }
+
+    private static RecipeDto MapToDto(Recipe r) => new()
+    {
+        Id = r.Id,
+        Name = r.Name,
+        Description = r.Description,
+        OutputProductId = r.OutputProductId,
+        OutputProductName = r.OutputProduct?.Name,
+        OutputProductSku = r.OutputProduct?.Sku,
+        OutputQuantity = r.OutputQuantity,
+        OutputUom = r.OutputUom,
+        Version = r.Version,
+        Status = r.Status.ToString().ToUpper(),
+        Instructions = r.Instructions,
+        IsActive = r.IsActive,
+        UpdatedAt = r.UpdatedAt,
+        Items = r.RecipeItems.Select(ri => new RecipeItemDto
+        {
+            Id = ri.Id,
+            ProductId = ri.ProductId,
+            ComponentName = ri.Product?.Name ?? string.Empty,
+            ComponentSku = ri.Product?.Sku,
+            Quantity = ri.Quantity,
+            Unit = ri.Unit,
+            UnitCost = ri.UnitCost,
+            Category = ri.Category
+        }).ToList()
+    };
 }

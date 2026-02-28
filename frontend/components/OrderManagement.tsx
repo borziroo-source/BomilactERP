@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
+import { usePermission } from '../hooks/usePermission';
 import { 
   ShoppingCart, 
   Plus, 
@@ -138,6 +139,7 @@ const INITIAL_ORDERS: SalesOrder[] = [
 
 const OrderManagement: React.FC = () => {
   const [orders, setOrders] = useState<SalesOrder[]>(INITIAL_ORDERS);
+  const { canCreate, canUpdate, canDelete } = usePermission('sales', 'sales_orders');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'ALL'>('ALL');
   
@@ -334,7 +336,8 @@ const OrderManagement: React.FC = () => {
             </div>
             <button 
               onClick={handleAddNew}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-medium flex items-center transition flex-shrink-0"
+              disabled={!canCreate}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-medium flex items-center transition flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Plus size={18} className="mr-1" />
               <span className="hidden sm:inline">Új Rendelés</span>
@@ -387,8 +390,8 @@ const OrderManagement: React.FC = () => {
                          </td>
                          <td className="px-6 py-4 text-right">
                             <div className="flex items-center justify-end space-x-2">
-                               <button onClick={() => handleEdit(order)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition"><Edit2 size={16}/></button>
-                               <button onClick={() => handleDelete(order.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition"><Trash2 size={16}/></button>
+                               <button onClick={() => handleEdit(order)} disabled={!canUpdate} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition disabled:opacity-40 disabled:cursor-not-allowed"><Edit2 size={16}/></button>
+                               <button onClick={() => handleDelete(order.id)} disabled={!canDelete} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition disabled:opacity-40 disabled:cursor-not-allowed"><Trash2 size={16}/></button>
                             </div>
                          </td>
                       </tr>
@@ -579,7 +582,7 @@ const OrderManagement: React.FC = () => {
                   <button onClick={() => setIsModalOpen(false)} className="px-5 py-2.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 rounded-lg font-bold transition">
                      Mégse
                   </button>
-                  <button onClick={handleSave} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold shadow-lg shadow-blue-600/20 transition flex items-center">
+                  <button onClick={handleSave} disabled={!(isEditing ? canUpdate : canCreate)} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold shadow-lg shadow-blue-600/20 transition flex items-center disabled:opacity-40 disabled:cursor-not-allowed">
                      <Save size={18} className="mr-2" />
                      Rendelés Mentése
                   </button>

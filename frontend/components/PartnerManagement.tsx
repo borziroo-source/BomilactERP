@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { usePermission } from '../hooks/usePermission';
 import { 
   Search, 
   Plus, 
@@ -63,6 +64,7 @@ const API_BASE_URL = RAW_API_BASE_URL.endsWith('/api')
 
 const PartnerManagement: React.FC = () => {
   const [partners, setPartners] = useState<Partner[]>([]);
+  const { canCreate, canUpdate, canDelete } = usePermission('sales', 'sales_partners');
   const [pagination, setPagination] = useState<PaginatedResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');

@@ -20,31 +20,38 @@ public class ProductionPlansController : ControllerBase
     }
 
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<ProductionPlanDto>>> GetAll()
+    public async Task<ActionResult<IEnumerable<ProductionPlanDto>>> GetAll(
+        [FromQuery] string? status = null,
+        [FromQuery] string? dateFrom = null,
+        [FromQuery] string? dateTo = null,
+        [FromQuery] string? searchTerm = null)
     {
         try
         {
-            _logger.LogInformation("Fetching all production plans");
-            var plans = await _context.ProductionPlans.ToListAsync();
+            var query = _context.ProductionPlans.AsQueryable();
 
-            var dtos = plans.Select(p => new ProductionPlanDto
+            if (!string.IsNullOrWhiteSpace(status) && status != "ALL")
             {
-                Id = p.Id,
-                PlanNumber = p.PlanNumber,
-                PlannedDate = p.PlannedDate,
-                ActualStartDate = p.ActualStartDate,
-                ActualEndDate = p.ActualEndDate,
-                Status = (int)p.Status,
-                Notes = p.Notes
-            });
+                if (Enum.TryParse<ProductionStatus>(status, true, out var statusEnum))
+                    query = query.Where(p => p.Status == statusEnum);
+            }
+            if (!string.IsNullOrWhiteSpace(searchTerm))
+            {
+                var lower = searchTerm.ToLower();
+                query = query.Where(p => p.ProductName.ToLower().Contains(lower) || p.PlanNumber.ToLower().Contains(lower));
+            }
+            if (!string.IsNullOrWhiteSpace(dateFrom) && DateTime.TryParse(dateFrom, out var from))
+                query = query.Where(p => p.StartDate >= from);
+            if (!string.IsNullOrWhiteSpace(dateTo) && DateTime.TryParse(dateTo, out var to))
+                query = query.Where(p => p.StartDate <= to);
 
-            _logger.LogInformation("Successfully fetched {Count} production plans", dtos.Count());
-            return Ok(dtos);
+            var plans = await query.OrderBy(p => p.StartDate).ToListAsync();
+            return Ok(plans.Select(MapToDto));
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An error occurred while fetching production plans");
-            return StatusCode(500, new { message = "An error occurred while processing your request" });
+            _logger.LogError(ex, "Error fetching production plans");
+            return StatusCode(500, new { message = "Hiba a gyártási tervek lekérésekor." });
         }
     }
 
@@ -53,32 +60,14 @@ public class ProductionPlansController : ControllerBase
     {
         try
         {
-            _logger.LogInformation("Fetching production plan with ID {ProductionPlanId}", id);
             var plan = await _context.ProductionPlans.FindAsync(id);
-            if (plan == null)
-            {
-                _logger.LogWarning("Production plan with ID {ProductionPlanId} not found", id);
-                return NotFound();
-            }
-
-            var dto = new ProductionPlanDto
-            {
-                Id = plan.Id,
-                PlanNumber = plan.PlanNumber,
-                PlannedDate = plan.PlannedDate,
-                ActualStartDate = plan.ActualStartDate,
-                ActualEndDate = plan.ActualEndDate,
-                Status = (int)plan.Status,
-                Notes = plan.Notes
-            };
-
-            _logger.LogInformation("Successfully fetched production plan with ID {ProductionPlanId}", id);
-            return Ok(dto);
+            if (plan == null) return NotFound();
+            return Ok(MapToDto(plan));
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An error occurred while fetching production plan with ID {ProductionPlanId}", id);
-            return StatusCode(500, new { message = "An error occurred while processing your request" });
+            _logger.LogError(ex, "Error fetching production plan {Id}", id);
+            return StatusCode(500, new { message = "Hiba a gyártási terv lekérésekor." });
         }
     }
 
@@ -87,35 +76,32 @@ public class ProductionPlansController : ControllerBase
     {
         try
         {
-            _logger.LogInformation("Creating new production plan with number {PlanNumber}", dto.PlanNumber);
             var plan = new ProductionPlan
             {
                 PlanNumber = dto.PlanNumber,
-                PlannedDate = dto.PlannedDate,
-                Notes = dto.Notes
+                ProductName = dto.ProductName,
+                Sku = dto.Sku,
+                Quantity = dto.Quantity,
+                Uom = dto.Uom,
+                StartDate = dto.StartDate,
+                EndDate = dto.EndDate,
+                Line = dto.Line,
+                Supervisor = dto.Supervisor,
+                Priority = dto.Priority,
+                Notes = dto.Notes,
+                Status = ProductionStatus.Draft
             };
 
             _context.ProductionPlans.Add(plan);
             await _context.SaveChangesAsync();
 
-            var resultDto = new ProductionPlanDto
-            {
-                Id = plan.Id,
-                PlanNumber = plan.PlanNumber,
-                PlannedDate = plan.PlannedDate,
-                ActualStartDate = plan.ActualStartDate,
-                ActualEndDate = plan.ActualEndDate,
-                Status = (int)plan.Status,
-                Notes = plan.Notes
-            };
-
-            _logger.LogInformation("Successfully created production plan with ID {ProductionPlanId}", plan.Id);
-            return CreatedAtAction(nameof(GetById), new { id = plan.Id }, resultDto);
+            _logger.LogInformation("Created production plan {PlanNumber}", plan.PlanNumber);
+            return CreatedAtAction(nameof(GetById), new { id = plan.Id }, MapToDto(plan));
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An error occurred while creating production plan");
-            return StatusCode(500, new { message = "An error occurred while processing your request" });
+            _logger.LogError(ex, "Error creating production plan");
+            return StatusCode(500, new { message = "Hiba a gyártási terv létrehozásakor." });
         }
     }
 
@@ -124,32 +110,60 @@ public class ProductionPlansController : ControllerBase
     {
         try
         {
-            _logger.LogInformation("Updating production plan with ID {ProductionPlanId}", id);
             var plan = await _context.ProductionPlans.FindAsync(id);
-            if (plan == null)
-            {
-                _logger.LogWarning("Production plan with ID {ProductionPlanId} not found for update", id);
-                return NotFound();
-            }
+            if (plan == null) return NotFound();
 
             plan.PlanNumber = dto.PlanNumber;
-            plan.PlannedDate = dto.PlannedDate;
-            plan.ActualStartDate = dto.ActualStartDate;
-            plan.ActualEndDate = dto.ActualEndDate;
-            plan.Status = (ProductionStatus)dto.Status;
+            plan.ProductName = dto.ProductName;
+            plan.Sku = dto.Sku;
+            plan.Quantity = dto.Quantity;
+            plan.Uom = dto.Uom;
+            plan.StartDate = dto.StartDate;
+            plan.EndDate = dto.EndDate;
+            plan.Line = dto.Line;
+            plan.Supervisor = dto.Supervisor;
+            plan.Progress = dto.Progress;
+            plan.Priority = dto.Priority;
             plan.Notes = dto.Notes;
             plan.UpdatedAt = DateTime.UtcNow;
 
-            _context.ProductionPlans.Update(plan);
-            await _context.SaveChangesAsync();
+            if (Enum.TryParse<ProductionStatus>(dto.Status, true, out var statusEnum))
+                plan.Status = statusEnum;
 
-            _logger.LogInformation("Successfully updated production plan with ID {ProductionPlanId}", id);
+            await _context.SaveChangesAsync();
+            _logger.LogInformation("Updated production plan {Id}", id);
             return NoContent();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An error occurred while updating production plan with ID {ProductionPlanId}", id);
-            return StatusCode(500, new { message = "An error occurred while processing your request" });
+            _logger.LogError(ex, "Error updating production plan {Id}", id);
+            return StatusCode(500, new { message = "Hiba a gyártási terv frissítésekor." });
+        }
+    }
+
+    [HttpPatch("{id}/status")]
+    public async Task<IActionResult> UpdateStatus(int id, [FromBody] string newStatus)
+    {
+        try
+        {
+            var plan = await _context.ProductionPlans.FindAsync(id);
+            if (plan == null) return NotFound();
+
+            if (!Enum.TryParse<ProductionStatus>(newStatus, true, out var statusEnum))
+                return BadRequest(new { message = "Érvénytelen státusz." });
+
+            plan.Status = statusEnum;
+            plan.Progress = statusEnum == ProductionStatus.Completed ? 100 :
+                           (statusEnum == ProductionStatus.Draft || statusEnum == ProductionStatus.Planned ? 0 : plan.Progress);
+            plan.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating status for plan {Id}", id);
+            return StatusCode(500, new { message = "Hiba a státusz frissítésekor." });
         }
     }
 
@@ -158,24 +172,42 @@ public class ProductionPlansController : ControllerBase
     {
         try
         {
-            _logger.LogInformation("Deleting production plan with ID {ProductionPlanId}", id);
             var plan = await _context.ProductionPlans.FindAsync(id);
-            if (plan == null)
-            {
-                _logger.LogWarning("Production plan with ID {ProductionPlanId} not found for deletion", id);
-                return NotFound();
-            }
+            if (plan == null) return NotFound();
 
             _context.ProductionPlans.Remove(plan);
             await _context.SaveChangesAsync();
-
-            _logger.LogInformation("Successfully deleted production plan with ID {ProductionPlanId}", id);
+            _logger.LogInformation("Deleted production plan {Id}", id);
             return NoContent();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An error occurred while deleting production plan with ID {ProductionPlanId}", id);
-            return StatusCode(500, new { message = "An error occurred while processing your request" });
+            _logger.LogError(ex, "Error deleting production plan {Id}", id);
+            return StatusCode(500, new { message = "Hiba a gyártási terv törlésekor." });
         }
     }
+
+    private static ProductionPlanDto MapToDto(ProductionPlan p) => new()
+    {
+        Id = p.Id,
+        PlanNumber = p.PlanNumber,
+        ProductName = p.ProductName,
+        Sku = p.Sku,
+        Quantity = p.Quantity,
+        Uom = p.Uom,
+        StartDate = p.StartDate,
+        EndDate = p.EndDate,
+        Line = p.Line,
+        Supervisor = p.Supervisor,
+        Progress = p.Progress,
+        Priority = p.Priority,
+        Status = p.Status switch
+        {
+            ProductionStatus.InProgress => "IN_PROGRESS",
+            _ => p.Status.ToString().ToUpper()
+        },
+        Notes = p.Notes,
+        CreatedAt = p.CreatedAt,
+        UpdatedAt = p.UpdatedAt
+    };
 }

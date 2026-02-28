@@ -32,6 +32,7 @@ import {
   LabTestResult,
   AntibioticResult,
 } from '../services/labTests';
+import { usePermission } from '../hooks/usePermission';
 
 // --- Types ---
 type TestResult = LabTestResult;
@@ -43,6 +44,7 @@ const LabTests: React.FC = () => {
 
   // List state
   const [tests, setTests] = useState<LabTestDto[]>([]);
+  const { canCreate, canUpdate, canDelete } = usePermission('qa', 'qa_lab');
   const [totalCount, setTotalCount] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
@@ -264,7 +266,8 @@ const LabTests: React.FC = () => {
             </div>
             <button 
               onClick={handleAddNew}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-medium flex items-center transition flex-shrink-0"
+              disabled={!canCreate}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-medium flex items-center transition flex-shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Plus size={18} className="mr-1" />
               <span className="hidden sm:inline">Új Vizsgálat</span>
@@ -386,8 +389,8 @@ const LabTests: React.FC = () => {
                          </td>
                          <td className="px-6 py-4 text-right">
                             <div className="flex items-center justify-end space-x-2">
-                               <button onClick={() => handleEdit(test)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition"><Edit2 size={16}/></button>
-                               <button onClick={() => handleDelete(test.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition"><Trash2 size={16}/></button>
+                               <button onClick={() => handleEdit(test)} disabled={!canUpdate} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition disabled:opacity-40 disabled:cursor-not-allowed"><Edit2 size={16}/></button>
+                               <button onClick={() => handleDelete(test.id)} disabled={!canDelete} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition disabled:opacity-40 disabled:cursor-not-allowed"><Trash2 size={16}/></button>
                             </div>
                          </td>
                       </tr>
@@ -590,7 +593,7 @@ const LabTests: React.FC = () => {
 
                   <div className="pt-2 flex gap-3">
                      <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-medium transition">Mégse</button>
-                     <button type="submit" disabled={isSaving} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold shadow-lg shadow-blue-600/30 transition flex justify-center items-center disabled:opacity-60">
+                     <button type="submit" disabled={isSaving || !(isEditing ? canUpdate : canCreate)} className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold shadow-lg shadow-blue-600/30 transition flex justify-center items-center disabled:opacity-60">
                         {isSaving
                           ? <div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full mr-2"></div>
                           : <Save size={18} className="mr-2" />

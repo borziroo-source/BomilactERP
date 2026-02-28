@@ -31,6 +31,7 @@ import * as supplierService from '../services/suppliers';
 import * as supplierGroupService from '../services/supplierGroups';
 import * as fleetService from '../services/fleet';
 import * as milkCollectionService from '../services/milkCollections';
+import { usePermission } from '../hooks/usePermission';
 
 type IntakeFormState = {
    supplierId: string;
@@ -46,6 +47,7 @@ type IntakeFormState = {
 
 const DailyCollection: React.FC = () => {
   const [viewMode, setViewMode] = useState<'DAILY' | 'MONTHLY'>('DAILY');
+  const { canCreate, canUpdate, canDelete } = usePermission('logistics', 'log_collection');
    const [collections, setCollections] = useState<MilkCollectionEntry[]>([]);
    const [suppliers, setSuppliers] = useState<Supplier[]>([]);
    const [collectionPoints, setCollectionPoints] = useState<SupplierGroup[]>([]);
@@ -482,7 +484,8 @@ const DailyCollection: React.FC = () => {
               </div>
                      <button 
                         onClick={openNewIntakeModal}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl text-sm font-black flex items-center gap-2 shadow-lg shadow-blue-600/20 transition active:scale-95"
+                        disabled={!canCreate}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-xl text-sm font-black flex items-center gap-2 shadow-lg shadow-blue-600/20 transition active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                  <Plus size={18} /> Új Átvétel Rögzítése
               </button>
@@ -538,8 +541,8 @@ const DailyCollection: React.FC = () => {
                            </td>
                            <td className="px-6 py-4 text-right">
                               <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                 <button onClick={() => handleEdit(entry)} className="p-2 text-slate-400 hover:text-blue-600 transition"><Edit2 size={16}/></button>
-                                 <button onClick={() => handleDelete(entry.id)} className="p-2 text-slate-400 hover:text-red-600 transition"><Trash2 size={16}/></button>
+                                  <button onClick={() => handleEdit(entry)} disabled={!canUpdate} className="p-2 text-slate-400 hover:text-blue-600 transition disabled:opacity-40 disabled:cursor-not-allowed"><Edit2 size={16}/></button>
+                                  <button onClick={() => handleDelete(entry.id)} disabled={!canDelete} className="p-2 text-slate-400 hover:text-red-600 transition disabled:opacity-40 disabled:cursor-not-allowed"><Trash2 size={16}/></button>
                               </div>
                            </td>
                         </tr>
@@ -695,7 +698,7 @@ const DailyCollection: React.FC = () => {
                          <button onClick={closeIntakeModal} className="flex-1 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl transition hover:bg-slate-100">Mégse</button>
                  <button 
                   onClick={handleSaveIntake}
-                           disabled={newIntake.antibioticTest === 'POSITIVE' || isSaving}
+                           disabled={newIntake.antibioticTest === 'POSITIVE' || isSaving || !(editingEntry ? canUpdate : canCreate)}
                   className={`flex-1 py-3 font-black text-white rounded-xl shadow-lg transition flex items-center justify-center gap-2
                               ${newIntake.antibioticTest === 'POSITIVE' || isSaving ? 'bg-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/30 active:scale-95'}
                   `}

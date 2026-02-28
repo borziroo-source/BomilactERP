@@ -28,6 +28,7 @@ import { SupplierGroup, Supplier } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import * as supplierGroupsApi from '../services/supplierGroups';
 import { fetchSuppliers } from '../services/suppliers';
+import { usePermission } from '../hooks/usePermission';
 
 // Tailwind color preset options for groups
 const COLOR_PRESETS = [
@@ -59,6 +60,7 @@ const API_BASE_URL = RAW_API_BASE_URL.endsWith('/api')
 const SupplierGroupManagement: React.FC = () => {
   const { t } = useLanguage();
   const [groups, setGroups] = useState<(SupplierGroup & { memberCount: number })[]>([]);
+  const { canCreate, canUpdate, canDelete } = usePermission('logistics', 'log_supplier_groups');
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [pageNumber, setPageNumber] = useState(1);
@@ -356,7 +358,8 @@ const SupplierGroupManagement: React.FC = () => {
             </button>
             <button 
               onClick={handleAddNew}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl text-sm font-bold flex items-center transition shadow-lg shadow-blue-600/20 whitespace-nowrap"
+              disabled={!canCreate}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl text-sm font-bold flex items-center transition shadow-lg shadow-blue-600/20 whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Plus size={18} className="mr-2" />
               {t('sup.groups_new_btn')}
@@ -434,13 +437,15 @@ const SupplierGroupManagement: React.FC = () => {
                               </button>
                               <button 
                                 onClick={() => handleEdit(group)}
-                                className="p-2 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition"
+                                disabled={!canUpdate}
+                                className="p-2 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed"
                               >
                                 <Edit2 size={16} />
                               </button>
                               <button 
                                 onClick={() => handleDelete(group.id)}
-                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+                                disabled={!canDelete}
+                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed"
                               >
                                 <Trash2 size={16} />
                               </button>
@@ -734,7 +739,8 @@ const SupplierGroupManagement: React.FC = () => {
                  </button>
                  <button 
                    type="submit" 
-                   className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-600/30 transition flex items-center justify-center"
+                   disabled={!(isEditing ? canUpdate : canCreate)}
+                   className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-600/30 transition flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
                  >
                    <Save size={18} className="mr-2" />
                    {t('sup.save_btn')}

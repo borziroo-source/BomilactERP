@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
+import { usePermission } from '../hooks/usePermission';
 import { 
   FileText, 
   Search, 
@@ -55,6 +56,7 @@ const MONTHLY_TOTALS = [
 
 const FarmerInvoicing: React.FC = () => {
   const [selectedMonth, setSelectedMonth] = useState('2023-10');
+  const { canCreate } = usePermission('logistics', 'log_farmer_invoicing');
   const [farmers, setFarmers] = useState<Supplier[]>(INITIAL_FARMERS);
   const [searchTerm, setSearchTerm] = useState('');
   const [generatingId, setGeneratingId] = useState<string | null>(null);

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { usePermission } from '../hooks/usePermission';
 import { 
   Search, 
   Plus, 
@@ -23,6 +24,7 @@ const PAGE_SIZE = 20;
 
 const ProductManagement: React.FC = () => {
   const [products, setProducts] = useState<Product[]>([]);
+  const { canCreate, canUpdate, canDelete } = usePermission('admin', 'admin_products');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');

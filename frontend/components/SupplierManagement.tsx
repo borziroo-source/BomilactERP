@@ -27,6 +27,7 @@ import {
 import { Supplier, SupplierType, SupplierGroup, LegalType } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import * as supplierService from '../services/suppliers';
+import { usePermission } from '../hooks/usePermission';
 
 // Mock Groups
 const INITIAL_GROUPS: SupplierGroup[] = [
@@ -102,6 +103,7 @@ const INITIAL_SUPPLIERS: Supplier[] = [
 const SupplierManagement: React.FC = () => {
   const { t } = useLanguage();
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const { canCreate, canUpdate, canDelete } = usePermission('logistics', 'log_suppliers');
   const [groups] = useState<SupplierGroup[]>(INITIAL_GROUPS);
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<SupplierType | 'ALL'>('ALL');
@@ -348,7 +350,8 @@ const SupplierManagement: React.FC = () => {
           </button>
           <button 
             onClick={handleAddNew}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center transition shadow-lg shadow-blue-600/20"
+            disabled={!canCreate}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center transition shadow-lg shadow-blue-600/20 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Plus size={18} className="mr-2" />
             {t('sup.new_btn')}
@@ -429,8 +432,8 @@ const SupplierManagement: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end space-x-1">
-                        <button onClick={() => handleEdit(supplier)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition"><Edit2 size={18} /></button>
-                        <button onClick={() => handleDelete(supplier.id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"><Trash2 size={18} /></button>
+                        <button onClick={() => handleEdit(supplier)} disabled={!canUpdate} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed"><Edit2 size={18} /></button>
+                        <button onClick={() => handleDelete(supplier.id)} disabled={!canDelete} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition disabled:opacity-40 disabled:cursor-not-allowed"><Trash2 size={18} /></button>
                       </div>
                     </td>
                   </tr>
@@ -581,7 +584,7 @@ const SupplierManagement: React.FC = () => {
             {/* Modal Footer */}
             <div className="bg-slate-50 p-6 border-t border-slate-100 flex gap-4 shrink-0">
                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl transition hover:bg-slate-50">{t('sup.cancel_btn')}</button>
-               <button onClick={handleSave} className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-600/30 transition flex items-center justify-center">
+               <button onClick={handleSave} disabled={!(isEditing ? canUpdate : canCreate)} className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-600/30 transition flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed">
                   <Save size={20} className="mr-2" />
                   {t('sup.save_btn')}
                </button>

@@ -18,9 +18,11 @@ import {
 } from 'lucide-react';
 import { Vehicle, VehicleType, VehicleStatus } from '../types';
 import * as fleetApi from '../services/fleet';
+import { usePermission } from '../hooks/usePermission';
 
 const FleetManagement: React.FC = () => {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const { canCreate, canUpdate } = usePermission('logistics', 'log_fleet');
   const [activeTab, setActiveTab] = useState<'VEHICLES' | 'DOCS'>('VEHICLES');
   const [washModalOpen, setWashModalOpen] = useState(false);
   const [selectedVehicleId, setSelectedVehicleId] = useState<number | null>(null);
@@ -232,7 +234,8 @@ const FleetManagement: React.FC = () => {
            </button>
            <button 
              onClick={() => setAddModalOpen(true)}
-             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center"
+             disabled={!canCreate}
+             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center disabled:opacity-40 disabled:cursor-not-allowed"
            >
              <Plus size={18} className="mr-2" /> Új Jármű
            </button>
@@ -320,7 +323,8 @@ const FleetManagement: React.FC = () => {
                     {vehicle.type !== VehicleType.PASSENGER && (
                       <button 
                         onClick={() => handleOpenWashModal(vehicle.id)}
-                        className="flex items-center justify-center px-3 py-2 bg-white border border-slate-200 hover:bg-blue-50 hover:border-blue-300 text-slate-700 rounded-lg text-sm transition"
+                        disabled={!canUpdate}
+                        className="flex items-center justify-center px-3 py-2 bg-white border border-slate-200 hover:bg-blue-50 hover:border-blue-300 text-slate-700 rounded-lg text-sm transition disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                         <Droplet size={16} className="mr-2 text-blue-500" />
                         Mosás Rögzítése
@@ -367,7 +371,8 @@ const FleetManagement: React.FC = () => {
                        </span>
                        <button 
                          onClick={() => handleOpenRenewModal(v.id, 'ITP')}
-                         className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
+                         disabled={!canUpdate}
+                         className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                          title="ITP Megújítás"
                        >
                          <RefreshCw size={14} />
@@ -383,7 +388,8 @@ const FleetManagement: React.FC = () => {
                        </span>
                        <button 
                          onClick={() => handleOpenRenewModal(v.id, 'RCA')}
-                         className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
+                         disabled={!canUpdate}
+                         className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                          title="RCA Megújítás"
                        >
                          <RefreshCw size={14} />
@@ -447,7 +453,8 @@ const FleetManagement: React.FC = () => {
 
               <button 
                 onClick={handleSaveWash}
-                className="w-full mt-4 bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-bold flex items-center justify-center transition shadow-lg shadow-green-600/30"
+                disabled={!canUpdate}
+                className="w-full mt-4 bg-green-600 hover:bg-green-700 text-white py-3 rounded-lg font-bold flex items-center justify-center transition shadow-lg shadow-green-600/30 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <CheckCircle className="mr-2" />
                 Mosás Igazolása & Státusz Frissítése
@@ -496,7 +503,8 @@ const FleetManagement: React.FC = () => {
                   </button>
                   <button 
                     onClick={handleSaveRenew}
-                    className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold flex items-center justify-center transition"
+                    disabled={!canUpdate}
+                    className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold flex items-center justify-center transition disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <Save size={16} className="mr-2" />
                     Mentés
@@ -612,7 +620,8 @@ const FleetManagement: React.FC = () => {
                   </button>
                   <button 
                     type="submit"
-                    className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold flex items-center justify-center transition"
+                    disabled={!canCreate}
+                    className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold flex items-center justify-center transition disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <Save size={16} className="mr-2" />
                     Jármű Mentése

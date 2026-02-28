@@ -17,6 +17,7 @@ import { Contract } from '../types';
 import { useLanguage } from '../contexts/LanguageContext';
 import { createContract, fetchContracts } from '../services/contracts';
 import { fetchPartners, PartnerRef } from '../services/partners';
+import { usePermission } from '../hooks/usePermission';
 
 const defaultContract = (): Partial<Contract> => ({
    partnerId: 0,
@@ -33,6 +34,7 @@ const defaultContract = (): Partial<Contract> => ({
 const ContractManagement: React.FC = () => {
    const { t } = useLanguage();
    const [contracts, setContracts] = useState<Contract[]>([]);
+   const { canCreate } = usePermission('logistics', 'log_contracts');
    const [partners, setPartners] = useState<PartnerRef[]>([]);
    const [searchTerm, setSearchTerm] = useState('');
    const [isModalOpen, setIsModalOpen] = useState(false);
@@ -179,7 +181,8 @@ const ContractManagement: React.FC = () => {
               <button className="p-2 text-slate-400 hover:text-slate-600 transition"><BarChart3 size={20} /></button>
               <button 
                 onClick={openNewModal}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center transition"
+                disabled={!canCreate}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center transition disabled:opacity-40 disabled:cursor-not-allowed"
               >
                  <Plus size={18} className="mr-2" />
                  {t('cnt.new_contract') ?? 'Új szerződés'}
@@ -345,7 +348,8 @@ const ContractManagement: React.FC = () => {
                     </button>
                     <button 
                       type="submit"
-                      className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-600/20 transition flex items-center justify-center"
+                      disabled={!canCreate}
+                      className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-600/20 transition flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                        <Save size={18} className="mr-2" />
                        {t('sup.save_btn')}

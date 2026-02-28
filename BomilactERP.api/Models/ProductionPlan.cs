@@ -4,17 +4,24 @@ public class ProductionPlan : ISoftDeletable
 {
     public int Id { get; set; }
     public string PlanNumber { get; set; } = string.Empty;
-    public DateTime PlannedDate { get; set; }
-    public DateTime? ActualStartDate { get; set; }
-    public DateTime? ActualEndDate { get; set; }
-    public ProductionStatus Status { get; set; } = ProductionStatus.Planned;
+
+    // Gyártási megrendelés adatok (frontend: ProductionOrder)
+    public string ProductName { get; set; } = string.Empty;
+    public string? Sku { get; set; }
+    public decimal Quantity { get; set; }
+    public string Uom { get; set; } = "db";
+    public DateTime StartDate { get; set; }
+    public DateTime EndDate { get; set; }
+    public string Line { get; set; } = string.Empty;
+    public string? Supervisor { get; set; }
+    public int Progress { get; set; } = 0; // 0-100
+    public string Priority { get; set; } = "NORMAL"; // NORMAL | HIGH
+
+    public ProductionStatus Status { get; set; } = ProductionStatus.Draft;
     public string? Notes { get; set; }
     public bool IsDeleted { get; set; } = false;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
-
-    // Navigation properties
-    public ICollection<ProductionItem> ProductionItems { get; set; } = new List<ProductionItem>();
 }
 
 public class ProductionItem : ISoftDeletable
@@ -34,8 +41,10 @@ public class ProductionItem : ISoftDeletable
 
 public enum ProductionStatus
 {
+    Draft,
     Planned,
     InProgress,
     Completed,
-    Cancelled
+    Cancelled,
+    Delayed
 }

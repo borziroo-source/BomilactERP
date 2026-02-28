@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Activity, 
   Thermometer, 
@@ -25,140 +25,92 @@ import {
   Tooltip, 
   ResponsiveContainer 
 } from 'recharts';
+import {
+  fetchActiveBatches,
+  updateBatchStep,
+  logBatchParams,
+  type ProductionBatchDto,
+} from '../services/productionBatches';
+import { usePermission } from '../hooks/usePermission';
 
 // --- Types ---
 
 export interface ProductionStep {
   name: string;
-  durationMinutes: number; // Planned duration
-  elapsedMinutes: number;  // Actual elapsed
+  durationMinutes: number;
+  elapsedMinutes: number;
   type: 'HEATING' | 'MIXING' | 'RESTING' | 'COOLING' | 'CUTTING' | 'DRAINING';
 }
 
 export interface ActiveBatch {
-  id: string;
+  id: number;
   lineId: string;
   lineName: string;
   productName: string;
-  batchId: string; // LOT
+  batchId: string;
   quantity: number;
   uom: string;
   startTime: string;
-  
-  // Workflow
   steps: ProductionStep[];
   currentStepIndex: number;
   status: 'RUNNING' | 'PAUSED' | 'ISSUE' | 'COMPLETED';
-  
-  // Real-time Params
   currentTemp: number;
   targetTemp: number;
   currentPh: number;
   agitatorRpm: number;
-  
-  // Mock Data for Charts
   tempHistory: { time: string, value: number }[];
-  
   alerts: string[];
 }
 
-// --- Mock Data ---
-
-const MOCK_TEMP_HISTORY = [
-  { time: '08:00', value: 32 },
-  { time: '08:15', value: 33 },
-  { time: '08:30', value: 34 },
-  { time: '08:45', value: 38 },
-  { time: '09:00', value: 42 },
-  { time: '09:15', value: 42 },
-  { time: '09:30', value: 41 },
-];
-
-const INITIAL_BATCHES: ActiveBatch[] = [
-  {
-    id: 'ab-1',
-    lineId: 'L1',
-    lineName: 'Sajt Üzem A - Kád 1',
-    productName: 'Cașcaval Rucăr',
-    batchId: 'L23-1027-01',
-    quantity: 5000,
-    uom: 'l',
-    startTime: '2023-10-27T08:00:00',
-    currentStepIndex: 2,
-    status: 'RUNNING',
-    currentTemp: 42.5,
-    targetTemp: 42.0,
-    currentPh: 6.45,
-    agitatorRpm: 15,
-    tempHistory: MOCK_TEMP_HISTORY,
-    alerts: [],
-    steps: [
-      { name: 'Feltöltés', durationMinutes: 30, elapsedMinutes: 30, type: 'HEATING' },
-      { name: 'Kultúrázás', durationMinutes: 45, elapsedMinutes: 45, type: 'MIXING' },
-      { name: 'Oltás / Alvadás', durationMinutes: 40, elapsedMinutes: 12, type: 'RESTING' },
-      { name: 'Felvágás', durationMinutes: 20, elapsedMinutes: 0, type: 'CUTTING' },
-      { name: 'Utómelegítés', durationMinutes: 30, elapsedMinutes: 0, type: 'HEATING' },
-      { name: 'Ülepítés', durationMinutes: 15, elapsedMinutes: 0, type: 'RESTING' },
-    ]
-  },
-  {
-    id: 'ab-2',
-    lineId: 'L2',
-    lineName: 'Sajt Üzem A - Kád 2',
-    productName: 'Sajt Trapista',
-    batchId: 'L23-1027-02',
-    quantity: 5000,
-    uom: 'l',
-    startTime: '2023-10-27T09:30:00',
-    currentStepIndex: 0,
-    status: 'RUNNING',
-    currentTemp: 12.0,
-    targetTemp: 32.0,
-    currentPh: 6.65,
-    agitatorRpm: 40,
-    tempHistory: [{ time: '09:30', value: 6 }, { time: '09:45', value: 12 }],
-    alerts: [],
-    steps: [
-      { name: 'Feltöltés & Melegítés', durationMinutes: 45, elapsedMinutes: 20, type: 'HEATING' },
-      { name: 'Kultúrázás', durationMinutes: 30, elapsedMinutes: 0, type: 'MIXING' },
-      { name: 'Oltás', durationMinutes: 35, elapsedMinutes: 0, type: 'RESTING' },
-      { name: 'Kidolgozás', durationMinutes: 60, elapsedMinutes: 0, type: 'CUTTING' },
-    ]
-  },
-  {
-    id: 'ab-3',
-    lineId: 'L3',
-    lineName: 'Joghurt Tank 1',
-    productName: 'Joghurt Natúr',
-    batchId: 'L23-1026-Y1',
-    quantity: 2000,
-    uom: 'l',
-    startTime: '2023-10-26T22:00:00',
-    currentStepIndex: 1,
-    status: 'ISSUE', // Issue
-    currentTemp: 44.2, // Too high
-    targetTemp: 42.0,
-    currentPh: 4.80,
-    agitatorRpm: 0,
-    tempHistory: MOCK_TEMP_HISTORY,
-    alerts: ['Hőmérséklet kritikus szint felett (+2.2°C)', 'Keverőmotor hiba jelzés'],
-    steps: [
-      { name: 'Pasztőrözés', durationMinutes: 60, elapsedMinutes: 60, type: 'HEATING' },
-      { name: 'Fermentálás (Alvasztás)', durationMinutes: 480, elapsedMinutes: 420, type: 'RESTING' },
-      { name: 'Hűtés', durationMinutes: 120, elapsedMinutes: 0, type: 'COOLING' },
-      { name: 'Törés / Keverés', durationMinutes: 30, elapsedMinutes: 0, type: 'MIXING' },
-    ]
-  }
-];
+const dtoToBatch = (dto: ProductionBatchDto): ActiveBatch => ({
+  id: dto.id,
+  lineId: dto.lineId,
+  lineName: dto.lineName,
+  productName: dto.productName,
+  batchId: dto.batchNumber,
+  quantity: dto.quantity,
+  uom: dto.uom,
+  startTime: dto.startTime,
+  steps: dto.steps.map(s => ({
+    name: s.name,
+    durationMinutes: s.durationMinutes,
+    elapsedMinutes: s.elapsedMinutes,
+    type: (s.stepType as ActiveBatch['steps'][0]['type']) || 'RESTING',
+  })),
+  currentStepIndex: dto.currentStepIndex,
+  status: dto.status as ActiveBatch['status'],
+  currentTemp: dto.currentTemp ?? 0,
+  targetTemp: dto.targetTemp ?? 0,
+  currentPh: dto.currentPh ?? 0,
+  agitatorRpm: dto.agitatorRpm ?? 0,
+  tempHistory: [],
+  alerts: dto.alerts.map(a => a.message),
+});
 
 const ActiveProduction: React.FC = () => {
-  const [batches, setBatches] = useState<ActiveBatch[]>(INITIAL_BATCHES);
+  const [batches, setBatches] = useState<ActiveBatch[]>([]);
+  const { canCreate, canUpdate } = usePermission('production', 'prod_active');
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // Modal State
   const [paramModalOpen, setParamModalOpen] = useState(false);
-  const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
+  const [selectedBatchId, setSelectedBatchId] = useState<number | null>(null);
   const [logParams, setLogParams] = useState({ temp: '', ph: '', note: '' });
+
+  const loadBatches = useCallback(async () => {
+    try {
+      const data = await fetchActiveBatches();
+      setBatches(data.map(dtoToBatch));
+    } catch {
+      // silently keep existing data on poll failure
+    }
+  }, []);
+
+  useEffect(() => {
+    loadBatches();
+    const pollInterval = setInterval(loadBatches, 10000);
+    return () => clearInterval(pollInterval);
+  }, [loadBatches]);
 
   // Update clock
   useEffect(() => {
@@ -189,28 +141,30 @@ const ActiveProduction: React.FC = () => {
     }
   };
 
-  const handleStepAction = (batchId: string, action: 'NEXT' | 'PREV' | 'PAUSE') => {
-    setBatches(prev => prev.map(b => {
-      if (b.id !== batchId) return b;
-      
-      if (action === 'NEXT') {
-         if (b.currentStepIndex < b.steps.length - 1) {
-            return { ...b, currentStepIndex: b.currentStepIndex + 1, status: 'RUNNING' };
-         } else {
-            return { ...b, status: 'COMPLETED' };
-         }
-      }
-      if (action === 'PREV' && b.currentStepIndex > 0) {
-         return { ...b, currentStepIndex: b.currentStepIndex - 1 };
-      }
-      if (action === 'PAUSE') {
-         return { ...b, status: b.status === 'PAUSED' ? 'RUNNING' : 'PAUSED' };
-      }
-      return b;
-    }));
+  const handleStepAction = async (batchId: number, action: 'NEXT' | 'PREV' | 'PAUSE') => {
+    const batch = batches.find(b => b.id === batchId);
+    if (!batch) return;
+
+    if (action === 'PAUSE') {
+      setBatches(prev => prev.map(b =>
+        b.id === batchId ? { ...b, status: b.status === 'PAUSED' ? 'RUNNING' : 'PAUSED' } : b
+      ));
+      return;
+    }
+
+    const newIndex = action === 'NEXT'
+      ? Math.min(batch.currentStepIndex + 1, batch.steps.length - 1)
+      : Math.max(batch.currentStepIndex - 1, 0);
+
+    try {
+      const updated = await updateBatchStep(batchId, newIndex);
+      setBatches(prev => prev.map(b => b.id === batchId ? dtoToBatch(updated) : b));
+    } catch {
+      alert('Lépésváltás sikertelen.');
+    }
   };
 
-  const openLogModal = (batchId: string) => {
+  const openLogModal = (batchId: number) => {
     const batch = batches.find(b => b.id === batchId);
     if (batch) {
       setSelectedBatchId(batchId);
@@ -223,32 +177,19 @@ const ActiveProduction: React.FC = () => {
     }
   };
 
-  const handleSaveParams = (e: React.FormEvent) => {
+  const handleSaveParams = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedBatchId) return;
 
-    setBatches(prev => prev.map(b => {
-      if (b.id === selectedBatchId) {
-         const newTemp = parseFloat(logParams.temp);
-         const alerts = [...b.alerts];
-         
-         // Simple alert logic check
-         if (Math.abs(newTemp - b.targetTemp) > 1.5) {
-            if (!alerts.some(a => a.includes('Hőmérséklet'))) {
-               alerts.push(`Manuális mérés: Hőmérséklet eltérés (${newTemp}°C)`);
-            }
-         }
-
-         return {
-            ...b,
-            currentTemp: newTemp,
-            currentPh: parseFloat(logParams.ph),
-            alerts: alerts,
-            status: alerts.length > 0 ? 'ISSUE' : 'RUNNING'
-         };
-      }
-      return b;
-    }));
+    try {
+      const updated = await logBatchParams(selectedBatchId, {
+        currentTemp: parseFloat(logParams.temp),
+        currentPh: parseFloat(logParams.ph),
+      });
+      setBatches(prev => prev.map(b => b.id === selectedBatchId ? dtoToBatch(updated) : b));
+    } catch {
+      alert('Paraméter rögzítés sikertelen.');
+    }
     setParamModalOpen(false);
   };
 
@@ -399,7 +340,8 @@ const ActiveProduction: React.FC = () => {
                    <div className="flex items-center gap-2 border-t border-slate-100 pt-4">
                       <button 
                         onClick={() => openLogModal(batch.id)}
-                        className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-bold transition flex items-center justify-center"
+                        disabled={!canCreate}
+                        className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-bold transition flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                          <Save size={16} className="mr-2" /> Paraméter
                       </button>
@@ -408,7 +350,8 @@ const ActiveProduction: React.FC = () => {
 
                       <button 
                         onClick={() => handleStepAction(batch.id, 'PAUSE')}
-                        className={`p-2 rounded-lg border transition ${batch.status === 'PAUSED' ? 'bg-amber-100 border-amber-300 text-amber-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                        disabled={!canUpdate}
+                        className={`p-2 rounded-lg border transition disabled:opacity-40 disabled:cursor-not-allowed ${batch.status === 'PAUSED' ? 'bg-amber-100 border-amber-300 text-amber-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
                         title={batch.status === 'PAUSED' ? 'Folytatás' : 'Szünet'}
                       >
                          {batch.status === 'PAUSED' ? <Play size={20} fill="currentColor" /> : <Pause size={20} />}
@@ -416,7 +359,8 @@ const ActiveProduction: React.FC = () => {
                       
                       <button 
                          onClick={() => handleStepAction(batch.id, 'NEXT')}
-                         className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold transition flex items-center justify-center shadow-lg shadow-blue-600/20"
+                         disabled={!canUpdate}
+                         className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold transition flex items-center justify-center shadow-lg shadow-blue-600/20 disabled:opacity-40 disabled:cursor-not-allowed"
                       >
                          Lépés Kész <FastForward size={16} className="ml-2" />
                       </button>
@@ -473,7 +417,7 @@ const ActiveProduction: React.FC = () => {
                      ></textarea>
                   </div>
 
-                  <button type="submit" className="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-bold flex items-center justify-center transition">
+                  <button type="submit" disabled={!canCreate} className="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-bold flex items-center justify-center transition disabled:opacity-40 disabled:cursor-not-allowed">
                      <CheckCircle size={18} className="mr-2" />
                      Rögzítés
                   </button>

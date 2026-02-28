@@ -1,5 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
+import { usePermission } from '../hooks/usePermission';
 import { 
   Truck, 
   MapPin, 
@@ -87,6 +88,7 @@ const INITIAL_ROUTES: DeliveryRoute[] = [
 
 const DeliveryPlanner: React.FC = () => {
   const [dateFilter, setDateFilter] = useState('2023-10-27');
+  const { canCreate } = usePermission('sales', 'sales_delivery');
   const [pendingOrders, setPendingOrders] = useState<DeliveryOrder[]>(PENDING_ORDERS);
   const [routes, setRoutes] = useState<DeliveryRoute[]>(INITIAL_ROUTES);
   const [activeRouteId, setActiveRouteId] = useState<string>(INITIAL_ROUTES[0].id);

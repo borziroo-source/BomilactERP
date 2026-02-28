@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { usePermission } from '../hooks/usePermission';
 import { 
   Map, 
   Truck, 
@@ -76,6 +77,7 @@ const MOCK_ROUTES: LogisticsRoute[] = [
 
 const RoutePlanner: React.FC = () => {
   const [routes, setRoutes] = useState<LogisticsRoute[]>(MOCK_ROUTES);
+  const { canCreate } = usePermission('logistics', 'log_routes');
   const [selectedRouteId, setSelectedRouteId] = useState<string>(MOCK_ROUTES[0].id);
   
   // New Route Modal State
@@ -173,7 +175,8 @@ const RoutePlanner: React.FC = () => {
            </div>
            <button 
              onClick={() => setIsNewRouteModalOpen(true)}
-             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center shadow-lg shadow-blue-600/20"
+             disabled={!canCreate}
+             className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center shadow-lg shadow-blue-600/20 disabled:opacity-40 disabled:cursor-not-allowed"
            >
              <Plus size={18} className="mr-2" />
              Új Útvonal
@@ -315,7 +318,8 @@ const RoutePlanner: React.FC = () => {
                           </div>
                           <button 
                             onClick={() => setIsAddStopModalOpen(true)}
-                            className="ml-4 text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                            disabled={!canCreate}
+                            className="ml-4 text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline disabled:opacity-40 disabled:cursor-not-allowed"
                           >
                             + Megálló hozzáadása
                           </button>
@@ -422,7 +426,7 @@ const RoutePlanner: React.FC = () => {
                    />
                 </div>
 
-                <button type="submit" className="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-bold flex items-center justify-center transition">
+                <button type="submit" disabled={!canCreate} className="w-full mt-4 bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-bold flex items-center justify-center transition disabled:opacity-40 disabled:cursor-not-allowed">
                    <Save size={18} className="mr-2" />
                    Terv Létrehozása
                 </button>
@@ -486,7 +490,7 @@ const RoutePlanner: React.FC = () => {
                   >
                     Mégse
                   </button>
-                  <button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-bold flex items-center justify-center transition">
+                  <button type="submit" disabled={!canCreate} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-bold flex items-center justify-center transition disabled:opacity-40 disabled:cursor-not-allowed">
                      Hozzáadás
                   </button>
                 </div>

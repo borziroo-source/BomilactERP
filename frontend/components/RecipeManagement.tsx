@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
   Search, 
   Plus, 
@@ -17,94 +17,73 @@ import {
   DollarSign,
   Info
 } from 'lucide-react';
-import { Product, ProductCategory } from '../types';
+// types import removed - Product type no longer needed here
+import {
+  fetchRecipes,
+  createRecipe,
+  updateRecipe,
+  deleteRecipe,
+  type RecipeApiDto,
+  type RecipeItemDto,
+  type RecipeInput,
+} from '../services/recipes';
+import { fetchProducts, type ProductApiDto } from '../services/products';
+import { usePermission } from '../hooks/usePermission';
 
 // --- Types ---
 
 interface BomItem {
   id: string;
+  productId: number;
   componentSku: string;
   componentName: string;
   quantity: number;
   uom: string;
-  category: ProductCategory;
-  unitCost: number; // Estimated standard cost
+  category: string;
+  unitCost: number;
 }
 
 interface Recipe {
-  id: string;
+  id: number;
   productSku: string;
   productName: string;
-  version: string; // e.g., "v1.0"
+  version: string;
   status: 'DRAFT' | 'ACTIVE' | 'ARCHIVED';
-  batchSize: number; // Output quantity (e.g. 100 kg)
+  batchSize: number;
   batchUom: string;
   items: BomItem[];
   instructions?: string;
   lastModified: string;
+  outputProductId?: number | null;
 }
 
-// --- Mock Data (Simulating Database) ---
-
-// Available Components (Ingredients & Packaging)
-const AVAILABLE_COMPONENTS: Partial<Product & { cost: number }>[] = [
-  { id: 'i1', sku: 'ING-MILK-RAW', name: 'Nyers Tehéntej', category: ProductCategory.RAW_MILK, uom: 'l', cost: 2.1 },
-  { id: 'i2', sku: 'ING-CULT-MESO', name: 'Kultúra Mesofil', category: ProductCategory.INGREDIENT, uom: 'csom', cost: 45.0 },
-  { id: 'i4', sku: 'ING-REN-CHYM', name: 'Oltó (Chymosin)', category: ProductCategory.INGREDIENT, uom: 'l', cost: 120.0 },
-  { id: 'i6', sku: 'ING-SALT', name: 'Só (Ipari)', category: ProductCategory.INGREDIENT, uom: 'kg', cost: 1.5 },
-  { id: 'i5', sku: 'ING-CACL', name: 'Kalcium-klorid', category: ProductCategory.INGREDIENT, uom: 'l', cost: 15.0 },
-  { id: 'p1', sku: 'PKG-VAC-2030', name: 'Vákuum tasak 20x30', category: ProductCategory.PACKAGING, uom: 'db', cost: 0.3 },
-  { id: 'p8', sku: 'PKG-LAB-RUC', name: 'Címke Rucăr', category: ProductCategory.PACKAGING, uom: 'db', cost: 0.15 },
-  { id: 'p7', sku: 'PKG-BOX-CHS', name: 'Karton Doboz', category: ProductCategory.PACKAGING, uom: 'db', cost: 2.5 },
-];
-
-// Finished Products (Targets)
-const FINISHED_PRODUCTS = [
-  { sku: 'RUC-NAT-450', name: 'Cașcaval Rucăr Natúr 450g', uom: 'db' },
-  { sku: 'DAL-NAT-450', name: 'Cașcaval Dalia 450g', uom: 'db' },
-  { sku: 'TRAP-500', name: 'Sajt Trapista 500g', uom: 'db' },
-  { sku: 'TEL-COW-400', name: 'Telemea Tehén 400g', uom: 'db' },
-];
-
-// Initial Recipes
-const INITIAL_RECIPES: Recipe[] = [
-  {
-    id: 'rcp-001',
-    productSku: 'RUC-NAT-450',
-    productName: 'Cașcaval Rucăr Natúr 450g',
-    version: 'v1.0',
-    status: 'ACTIVE',
-    batchSize: 100, // 100 db
-    batchUom: 'db',
-    lastModified: '2023-09-01',
-    instructions: 'Pasztőrözés 72°C-on 15 mp-ig. Kultúrázás 32°C-on. Alvadási idő 35 perc.',
-    items: [
-      { id: 'b1', componentSku: 'ING-MILK-RAW', componentName: 'Nyers Tehéntej', quantity: 500, uom: 'l', category: ProductCategory.RAW_MILK, unitCost: 2.1 },
-      { id: 'b2', componentSku: 'ING-CULT-MESO', componentName: 'Kultúra Mesofil', quantity: 1, uom: 'csom', category: ProductCategory.INGREDIENT, unitCost: 45.0 },
-      { id: 'b3', componentSku: 'ING-REN-CHYM', componentName: 'Oltó (Chymosin)', quantity: 0.15, uom: 'l', category: ProductCategory.INGREDIENT, unitCost: 120.0 },
-      { id: 'b4', componentSku: 'PKG-VAC-2030', componentName: 'Vákuum tasak 20x30', quantity: 100, uom: 'db', category: ProductCategory.PACKAGING, unitCost: 0.3 },
-      { id: 'b5', componentSku: 'PKG-LAB-RUC', componentName: 'Címke Rucăr', quantity: 100, uom: 'db', category: ProductCategory.PACKAGING, unitCost: 0.15 },
-    ]
-  },
-  {
-    id: 'rcp-002',
-    productSku: 'TEL-COW-400',
-    productName: 'Telemea Tehén 400g',
-    version: 'v1.2',
-    status: 'ACTIVE',
-    batchSize: 50, // 50 db
-    batchUom: 'db',
-    lastModified: '2023-10-15',
-    items: [
-      { id: 'b6', componentSku: 'ING-MILK-RAW', componentName: 'Nyers Tehéntej', quantity: 200, uom: 'l', category: ProductCategory.RAW_MILK, unitCost: 2.1 },
-      { id: 'b7', componentSku: 'ING-REN-CHYM', componentName: 'Oltó (Chymosin)', quantity: 0.08, uom: 'l', category: ProductCategory.INGREDIENT, unitCost: 120.0 },
-      { id: 'b8', componentSku: 'ING-SALT', componentName: 'Só (Ipari)', quantity: 5, uom: 'kg', category: ProductCategory.INGREDIENT, unitCost: 1.5 },
-    ]
-  }
-];
+const dtoToRecipe = (dto: RecipeApiDto): Recipe => ({
+  id: dto.id,
+  productSku: dto.outputProductSku ?? '',
+  productName: dto.name,
+  version: dto.version,
+  status: dto.status as Recipe['status'],
+  batchSize: dto.outputQuantity,
+  batchUom: dto.outputUom,
+  instructions: dto.instructions ?? undefined,
+  lastModified: dto.updatedAt ? dto.updatedAt.slice(0, 10) : new Date().toISOString().slice(0, 10),
+  outputProductId: dto.outputProductId,
+  items: dto.items.map(item => ({
+    id: item.id.toString(),
+    productId: item.productId,
+    componentSku: item.componentSku ?? '',
+    componentName: item.componentName,
+    quantity: Number(item.quantity),
+    uom: item.unit,
+    category: item.category ?? 'INGREDIENT',
+    unitCost: Number(item.unitCost ?? 0),
+  })),
+});
 
 const RecipeManagement: React.FC = () => {
-  const [recipes, setRecipes] = useState<Recipe[]>(INITIAL_RECIPES);
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const { canCreate, canUpdate, canDelete } = usePermission('production', 'prod_bom');
+  const [availableProducts, setAvailableProducts] = useState<ProductApiDto[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   
@@ -112,6 +91,20 @@ const RecipeManagement: React.FC = () => {
   const [currentRecipe, setCurrentRecipe] = useState<Partial<Recipe>>({});
   const [selectedComponentId, setSelectedComponentId] = useState<string>('');
   const [addComponentQty, setAddComponentQty] = useState<number>(1);
+
+  const loadRecipes = useCallback(async () => {
+    try {
+      const data = await fetchRecipes();
+      setRecipes(data.map(dtoToRecipe));
+    } catch {
+      setRecipes([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadRecipes();
+    fetchProducts({ pageSize: 200 }).then(r => setAvailableProducts(r.items)).catch(() => {});
+  }, [loadRecipes]);
 
   // --- Filtering ---
   const filteredRecipes = recipes.filter(r => 
@@ -128,7 +121,6 @@ const RecipeManagement: React.FC = () => {
 
   const handleCreateNew = () => {
     setCurrentRecipe({
-      id: `rcp-${Date.now()}`,
       status: 'DRAFT',
       version: 'v0.1',
       items: [],
@@ -140,59 +132,84 @@ const RecipeManagement: React.FC = () => {
   };
 
   const handleEdit = (recipe: Recipe) => {
-    setCurrentRecipe(JSON.parse(JSON.stringify(recipe))); // Deep copy
+    setCurrentRecipe(JSON.parse(JSON.stringify(recipe)));
     setIsEditorOpen(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: number) => {
     if (window.confirm('Biztosan törölni szeretnéd ezt a receptúrát?')) {
-      setRecipes(recipes.filter(r => r.id !== id));
+      try {
+        await deleteRecipe(id);
+        setRecipes(recipes.filter(r => r.id !== id));
+      } catch {
+        alert('Törlés sikertelen.');
+      }
     }
   };
 
-  const handleDuplicate = (recipe: Recipe) => {
-    const newRecipe = {
-      ...JSON.parse(JSON.stringify(recipe)),
-      id: `rcp-${Date.now()}`,
+  const handleDuplicate = async (recipe: Recipe) => {
+    const payload: RecipeInput = {
+      name: `${recipe.productName} (MÁSOLAT)`,
+      description: undefined,
       version: `${recipe.version}-COPY`,
       status: 'DRAFT',
-      lastModified: new Date().toISOString().split('T')[0]
+      outputProductId: recipe.outputProductId,
+      outputQuantity: recipe.batchSize,
+      outputUom: recipe.batchUom,
+      instructions: recipe.instructions,
+      isActive: false,
+      items: recipe.items.map(i => ({ productId: i.productId, quantity: i.quantity, unit: i.uom, unitCost: i.unitCost, category: i.category })),
     };
-    setRecipes([...recipes, newRecipe]);
+    try {
+      await createRecipe(payload);
+      await loadRecipes();
+    } catch {
+      alert('Duplikálás sikertelen.');
+    }
   };
 
-  const handleSave = () => {
-    if (!currentRecipe.productSku || !currentRecipe.items) return;
+  const handleSave = async () => {
+    if (!currentRecipe.items) return;
     
-    // Find Product Name if missing
-    const product = FINISHED_PRODUCTS.find(p => p.sku === currentRecipe.productSku);
-    const recipeToSave: Recipe = {
-      ...currentRecipe as Recipe,
-      productName: product?.name || currentRecipe.productName || 'Unknown',
-      lastModified: new Date().toISOString().split('T')[0]
+    const payload: RecipeInput = {
+      name: currentRecipe.productName || 'Új Receptúra',
+      version: currentRecipe.version || 'v0.1',
+      status: currentRecipe.status || 'DRAFT',
+      outputProductId: currentRecipe.outputProductId ?? null,
+      outputQuantity: currentRecipe.batchSize || 1,
+      outputUom: currentRecipe.batchUom || 'db',
+      instructions: currentRecipe.instructions,
+      isActive: currentRecipe.status === 'ACTIVE',
+      items: currentRecipe.items.map(i => ({ productId: i.productId, quantity: i.quantity, unit: i.uom, unitCost: i.unitCost, category: i.category })),
     };
 
-    if (recipes.some(r => r.id === recipeToSave.id)) {
-      setRecipes(recipes.map(r => r.id === recipeToSave.id ? recipeToSave : r));
-    } else {
-      setRecipes([...recipes, recipeToSave]);
+    try {
+      if (currentRecipe.id) {
+        await updateRecipe(currentRecipe.id, payload);
+      } else {
+        await createRecipe(payload);
+      }
+      await loadRecipes();
+      setIsEditorOpen(false);
+    } catch {
+      alert('Mentés sikertelen.');
     }
-    setIsEditorOpen(false);
   };
 
   const handleAddItem = () => {
     if (!selectedComponentId || !addComponentQty) return;
-    const component = AVAILABLE_COMPONENTS.find(c => c.id === selectedComponentId);
-    if (!component) return;
+    const product = availableProducts.find(p => p.id.toString() === selectedComponentId);
+    if (!product) return;
 
     const newItem: BomItem = {
       id: `bi-${Date.now()}`,
-      componentSku: component.sku!,
-      componentName: component.name!,
+      productId: product.id,
+      componentSku: product.sku,
+      componentName: product.name,
       quantity: addComponentQty,
-      uom: component.uom!,
-      category: component.category!,
-      unitCost: component.cost!
+      uom: product.uom,
+      category: product.category,
+      unitCost: product.price ?? 0,
     };
 
     setCurrentRecipe(prev => ({
@@ -215,8 +232,8 @@ const RecipeManagement: React.FC = () => {
   
   const renderItemTable = (items: BomItem[], categoryFilter: 'INGREDIENT' | 'PACKAGING') => {
     const filteredItems = items.filter(i => {
-      if (categoryFilter === 'INGREDIENT') return i.category === ProductCategory.INGREDIENT || i.category === ProductCategory.RAW_MILK;
-      return i.category === ProductCategory.PACKAGING;
+      if (categoryFilter === 'INGREDIENT') return i.category !== 'PACKAGING';
+      return i.category === 'PACKAGING';
     });
 
     if (filteredItems.length === 0) return <div className="text-sm text-slate-400 italic p-2">Nincs elem rögzítve.</div>;
@@ -282,7 +299,8 @@ const RecipeManagement: React.FC = () => {
               </div>
               <button 
                 onClick={handleCreateNew}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                disabled={!canCreate}
+                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Plus size={18} />
                 Új Receptúra
@@ -302,13 +320,13 @@ const RecipeManagement: React.FC = () => {
                     {recipe.status}
                   </span>
                   <div className="flex space-x-1">
-                    <button onClick={() => handleDuplicate(recipe)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-slate-50 rounded" title="Duplikálás">
+                    <button onClick={() => handleDuplicate(recipe)} disabled={!canCreate} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-slate-50 rounded disabled:opacity-40 disabled:cursor-not-allowed" title="Duplikálás">
                       <Copy size={14} />
                     </button>
-                    <button onClick={() => handleEdit(recipe)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-slate-50 rounded" title="Szerkesztés">
+                    <button onClick={() => handleEdit(recipe)} disabled={!canUpdate} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-slate-50 rounded disabled:opacity-40 disabled:cursor-not-allowed" title="Szerkesztés">
                       <Edit2 size={14} />
                     </button>
-                    <button onClick={() => handleDelete(recipe.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded" title="Törlés">
+                    <button onClick={() => handleDelete(recipe.id)} disabled={!canDelete} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded disabled:opacity-40 disabled:cursor-not-allowed" title="Törlés">
                       <Trash2 size={14} />
                     </button>
                   </div>
@@ -359,7 +377,7 @@ const RecipeManagement: React.FC = () => {
                  <button onClick={() => setIsEditorOpen(false)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition">
                     Mégse
                  </button>
-                 <button onClick={handleSave} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-bold transition flex items-center shadow-lg shadow-blue-900/50">
+                 <button onClick={handleSave} disabled={!(currentRecipe.id ? canUpdate : canCreate)} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-bold transition flex items-center shadow-lg shadow-blue-900/50 disabled:opacity-40 disabled:cursor-not-allowed">
                     <Save size={16} className="mr-2" />
                     Mentés
                  </button>
@@ -375,27 +393,16 @@ const RecipeManagement: React.FC = () => {
                  {/* Left: Product Selection */}
                  <div className="lg:col-span-2 space-y-4">
                     <div className="grid grid-cols-2 gap-4">
-                       <div>
-                          <label className="block text-sm font-bold text-slate-700 mb-1">Céltermék</label>
-                          <select 
-                            value={currentRecipe.productSku}
-                            onChange={(e) => {
-                               const prod = FINISHED_PRODUCTS.find(p => p.sku === e.target.value);
-                               setCurrentRecipe({
-                                  ...currentRecipe, 
-                                  productSku: e.target.value,
-                                  productName: prod?.name,
-                                  batchUom: prod?.uom
-                               });
-                            }}
-                            className="w-full border border-slate-300 rounded-lg px-3 py-2 bg-slate-50 focus:ring-2 focus:ring-blue-500 outline-none"
-                          >
-                             <option value="">Válassz terméket...</option>
-                             {FINISHED_PRODUCTS.map(p => (
-                                <option key={p.sku} value={p.sku}>{p.name} ({p.sku})</option>
-                             ))}
-                          </select>
-                       </div>
+                        <div>
+                           <label className="block text-sm font-bold text-slate-700 mb-1">Receptúra neve</label>
+                           <input
+                             type="text"
+                             value={currentRecipe.productName ?? ""}
+                             onChange={(e) => setCurrentRecipe({ ...currentRecipe, productName: e.target.value })}
+                             placeholder="Pl. Cașcaval Rucăr receptúra"
+                             className="w-full border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                           />
+                        </div>
                        <div>
                           <label className="block text-sm font-bold text-slate-700 mb-1">Verzió</label>
                           <input 
@@ -457,13 +464,13 @@ const RecipeManagement: React.FC = () => {
                        <div className="flex justify-between text-sm">
                           <span className="text-blue-600">Alapanyag Költség:</span>
                           <span className="font-bold text-blue-900">
-                             {calculateTotalCost((currentRecipe.items || []).filter(i => i.category !== ProductCategory.PACKAGING)).toLocaleString()} RON
+                             {calculateTotalCost((currentRecipe.items || []).filter(i => i.category !== 'PACKAGING')).toLocaleString()} RON
                           </span>
                        </div>
                        <div className="flex justify-between text-sm">
                           <span className="text-blue-600">Csomagolóanyag:</span>
                           <span className="font-bold text-blue-900">
-                             {calculateTotalCost((currentRecipe.items || []).filter(i => i.category === ProductCategory.PACKAGING)).toLocaleString()} RON
+                             {calculateTotalCost((currentRecipe.items || []).filter(i => i.category === 'PACKAGING')).toLocaleString()} RON
                           </span>
                        </div>
                        <div className="border-t border-blue-200 pt-2 flex justify-between text-lg">
@@ -492,13 +499,13 @@ const RecipeManagement: React.FC = () => {
                        >
                           <option value="">Válassz komponenst...</option>
                           <optgroup label="Alapanyagok">
-                             {AVAILABLE_COMPONENTS.filter(c => c.category !== ProductCategory.PACKAGING).map(c => (
-                                <option key={c.id} value={c.id}>{c.name}</option>
+                             {availableProducts.filter(p => p.category !== 'PACKAGING').map(p => (
+                                <option key={p.id} value={p.id.toString()}>{p.name} ({p.sku})</option>
                              ))}
                           </optgroup>
                           <optgroup label="Csomagolók">
-                             {AVAILABLE_COMPONENTS.filter(c => c.category === ProductCategory.PACKAGING).map(c => (
-                                <option key={c.id} value={c.id}>{c.name}</option>
+                             {availableProducts.filter(p => p.category === 'PACKAGING').map(p => (
+                                <option key={p.id} value={p.id.toString()}>{p.name} ({p.sku})</option>
                              ))}
                           </optgroup>
                        </select>
@@ -511,7 +518,8 @@ const RecipeManagement: React.FC = () => {
                        />
                        <button 
                           onClick={handleAddItem}
-                          className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm font-bold hover:bg-blue-700 transition"
+                          disabled={!canUpdate}
+                          className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm font-bold hover:bg-blue-700 transition disabled:opacity-40 disabled:cursor-not-allowed"
                        >
                           Hozzáad
                        </button>

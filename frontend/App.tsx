@@ -15,6 +15,8 @@ import { UserRole, MenuItem } from './types';
 import { getInternalMenu, getDriverMenu, getPartnerMenu, getAgentMenu } from './constants';
 import Dashboard from './components/Dashboard';
 import UserManagement from './components/UserManagement';
+import RoleManagement from './components/RoleManagement';
+import PermissionMatrix from './components/PermissionMatrix';
 import ProductManagement from './components/ProductManagement';
 import FleetManagement from './components/FleetManagement';
 import SupplierManagement from './components/SupplierManagement';
@@ -49,13 +51,16 @@ import LotProfitability from './components/LotProfitability';
 import CostAnalysis from './components/CostAnalysis';
 import SagaIntegration from './components/SagaIntegration';
 import AuditLog from './components/AuditLog'; 
-import FarmerInvoicing from './components/FarmerInvoicing'; // Új modul import
+import FarmerInvoicing from './components/FarmerInvoicing';
+import Login from './components/Login';
 import { askBomilactCore } from './services/geminiService';
 import { LanguageProvider, useLanguage } from './contexts/LanguageContext';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { Language } from './translations';
 
 const MainLayout: React.FC = () => {
   const { language, setLanguage, t } = useLanguage();
+  const { user, logout, isAuthenticated, hasPermission } = useAuth();
   
   // State
   const [currentRole, setCurrentRole] = useState<UserRole>(UserRole.INTERNAL);
@@ -72,19 +77,27 @@ const MainLayout: React.FC = () => {
 
   // Helper to get current menu structure based on role
   const getMenuStructure = () => {
+    let menu: MenuItem[];
     switch (currentRole) {
-      case UserRole.DRIVER: return getDriverMenu(t);
-      case UserRole.PARTNER: return getPartnerMenu(t);
-      case UserRole.AGENT: return getAgentMenu(t);
-      default: return getInternalMenu(t);
+      case UserRole.DRIVER: menu = getDriverMenu(t); break;
+      case UserRole.PARTNER: menu = getPartnerMenu(t); break;
+      case UserRole.AGENT: menu = getAgentMenu(t); break;
+      default: menu = getInternalMenu(t); break;
     }
+    // Filter subItems by view permission (admin bypasses)
+    return menu.map(item => ({
+      ...item,
+      subItems: item.subItems?.filter(sub =>
+        hasPermission(item.id, sub.id, 'view')
+      )
+    }));
   };
 
   const menu = getMenuStructure();
 
   // Find active item details for display
   const activeMainItem = menu.find(i => i.id === activeMenuId) || menu[0];
-  const activeSubItem = activeMainItem.subItems?.find(s => s.id === activeSubMenuId);
+  const activeSubItem = activeMainItem?.subItems?.find(s => s.id === activeSubMenuId);
 
   // AI Handler
   const handleAiAsk = async () => {
@@ -108,7 +121,7 @@ const MainLayout: React.FC = () => {
     if (activeMenuId === 'logistics' && currentRole === UserRole.INTERNAL) {
        if (activeSubMenuId === 'log_shipments') return <ShipmentArrival />;
        if (activeSubMenuId === 'log_collection') return <DailyCollection />;
-       if (activeSubMenuId === 'log_farmer_invoicing') return <FarmerInvoicing />; // Új modul renderelése
+       if (activeSubMenuId === 'log_farmer_invoicing') return <FarmerInvoicing />;
        if (activeSubMenuId === 'log_routes') return <RoutePlanner />;
        if (activeSubMenuId === 'log_fleet') return <FleetManagement />;
        if (activeSubMenuId === 'log_suppliers') return <SupplierManagement />;
@@ -156,6 +169,8 @@ const MainLayout: React.FC = () => {
     // 8. Admin Modules
     if (activeMenuId === 'admin' && currentRole === UserRole.INTERNAL) {
       if (activeSubMenuId === 'admin_users') return <UserManagement />;
+      if (activeSubMenuId === 'admin_roles') return <RoleManagement />;
+      if (activeSubMenuId === 'admin_permissions') return <PermissionMatrix />;
       if (activeSubMenuId === 'admin_products') return <ProductManagement />;
       if (activeSubMenuId === 'admin_logs') return <AuditLog />; 
     }
@@ -182,10 +197,13 @@ const MainLayout: React.FC = () => {
     }
     
     // Default placeholder for all other pages
-    const title = activeSubItem ? `${activeMainItem.label} - ${activeSubItem.label}` : activeMainItem.label;
+    const title = activeSubItem ? `${activeMainItem?.label} - ${activeSubItem.label}` : activeMainItem?.label || 'Modul';
     const desc = activeSubItem?.description || "Válasszon egy funkciót a menüből.";
     return <EmptyModule title={title} description={desc} />;
   };
+
+  const displayName = user ? `${user.lastName || ''} ${user.firstName || ''}`.trim() || user.email : 'Felhasználó';
+  const displayInitials = user ? (user.firstName?.charAt(0) || user.email?.charAt(0) || 'U').toUpperCase() : 'U';
 
   return (
     <div className="flex h-screen bg-slate-50 overflow-hidden font-sans">
@@ -303,7 +321,7 @@ const MainLayout: React.FC = () => {
               </div>
            </div>
 
-           {/* Role Switcher */}
+           {/* Role Switcher (dev only in production this would be driven by user's actual role) */}
            <div>
               {sidebarOpen && <p className="text-xs text-slate-500 uppercase font-bold mb-2">{t('ui.role_switch')}</p>}
               <div className={`grid ${sidebarOpen ? 'grid-cols-4' : 'grid-cols-1'} gap-2`}>
@@ -384,16 +402,19 @@ const MainLayout: React.FC = () => {
              <div className="h-8 w-px bg-slate-200 hidden md:block"></div>
              <div className="flex items-center space-x-3">
                <div className="text-right hidden md:block">
-                 <div className="text-sm font-bold text-slate-800">
-                   {currentRole === UserRole.AGENT ? 'Ügynök Péter' : currentRole === UserRole.PARTNER ? 'Kisbolt Kft.' : 'Kovács János'}
-                 </div>
-                 <div className="text-xs text-slate-500">
-                   {currentRole === UserRole.AGENT ? 'Értékesítő' : currentRole === UserRole.PARTNER ? 'Partner' : 'Termelésvezető'}
-                 </div>
+                 <div className="text-sm font-bold text-slate-800">{displayName}</div>
+                 <div className="text-xs text-slate-500">{user?.roles?.join(', ') || 'Felhasználó'}</div>
                </div>
                <div className="w-9 h-9 lg:w-10 lg:h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold text-sm">
-                 {currentRole === UserRole.AGENT ? 'ÜP' : currentRole === UserRole.PARTNER ? 'KB' : 'KJ'}
+                 {displayInitials}
                </div>
+               <button
+                 onClick={logout}
+                 title="Kijelentkezés"
+                 className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-full transition"
+               >
+                 <LogOut size={18} />
+               </button>
              </div>
           </div>
         </header>
@@ -426,12 +447,37 @@ const MainLayout: React.FC = () => {
   );
 };
 
-// Wrap App in Provider
-const App = () => {
+const AuthGate: React.FC = () => {
+  const { isAuthenticated, isLoading } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-slate-50">
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-slate-500 text-sm">Betöltés...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Login />;
+  }
+
   return (
     <LanguageProvider>
       <MainLayout />
     </LanguageProvider>
+  );
+};
+
+// Wrap App in Providers
+const App = () => {
+  return (
+    <AuthProvider>
+      <AuthGate />
+    </AuthProvider>
   );
 };
 

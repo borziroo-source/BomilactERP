@@ -114,6 +114,8 @@ export const getInternalMenu = (t: Translator): MenuItem[] => [
     icon: Settings,
     subItems: [
       { id: 'admin_users', label: 'Felhasználók', description: 'Jogosultságok és hozzáférések' },
+      { id: 'admin_roles', label: 'Szerepkörök', description: 'Felhasználói szerepkörök kezelése' },
+      { id: 'admin_permissions', label: 'Jogosultságok', description: 'Modul és funkció hozzáférések beállítása' },
       { id: 'admin_products', label: 'Terméktörzs', description: 'SKU definíciók és paraméterek' },
       { id: 'admin_logs', label: 'Audit Log', description: 'Rendszeresemények naplózása' }
     ]

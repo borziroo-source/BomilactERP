@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { 
   ClipboardCheck, 
   Search, 
@@ -27,86 +27,29 @@ import {
   ResponsiveContainer,
   ReferenceLine
 } from 'recharts';
+import {
+  fetchProductionLogs,
+  createProductionLog,
+  type ProductionLogDto,
+  type ProductionLogInput,
+} from '../services/productionLogs';
 
 // --- Types ---
 
 type HaccpStatus = 'OK' | 'WARNING' | 'CRITICAL';
 
 interface HaccpLogEntry {
-  id: string;
-  timestamp: string; // ISO DateTime
+  id: number;
+  timestamp: string;
   batchId: string;
   productName: string;
-  step: string; // CCP Step (e.g. Pasztőrözés)
+  step: string;
   temperature: number;
   ph: number;
   operator: string;
   status: HaccpStatus;
   notes?: string;
 }
-
-// --- Mock Data ---
-
-const INITIAL_LOGS: HaccpLogEntry[] = [
-  {
-    id: 'log-1',
-    timestamp: '2023-10-27T08:15:00',
-    batchId: 'L23-1027-01',
-    productName: 'Cașcaval Rucăr',
-    step: 'CCP1 - Pasztőrözés',
-    temperature: 72.5,
-    ph: 6.65,
-    operator: 'Kovács János',
-    status: 'OK',
-    notes: 'Hőntartás 15s - Rendben'
-  },
-  {
-    id: 'log-2',
-    timestamp: '2023-10-27T08:30:00',
-    batchId: 'L23-1027-01',
-    productName: 'Cașcaval Rucăr',
-    step: 'Hűtés oltáshoz',
-    temperature: 32.0,
-    ph: 6.64,
-    operator: 'Kovács János',
-    status: 'OK'
-  },
-  {
-    id: 'log-3',
-    timestamp: '2023-10-27T09:45:00',
-    batchId: 'L23-1027-02',
-    productName: 'Sajt Trapista',
-    step: 'CCP1 - Pasztőrözés',
-    temperature: 71.8, // Slightly low
-    ph: 6.60,
-    operator: 'Nagy Éva',
-    status: 'WARNING',
-    notes: 'Hőmérséklet ingadozás észlelhető'
-  },
-  {
-    id: 'log-4',
-    timestamp: '2023-10-27T10:30:00',
-    batchId: 'L23-1026-Y1',
-    productName: 'Joghurt Natúr',
-    step: 'Fermentálás',
-    temperature: 44.2, // Critical high
-    ph: 4.80,
-    operator: 'Varga Péter',
-    status: 'CRITICAL',
-    notes: 'Túlmelegedés! Hűtés manuálisan indítva.'
-  },
-  {
-    id: 'log-5',
-    timestamp: '2023-10-27T11:00:00',
-    batchId: 'L23-1027-01',
-    productName: 'Cașcaval Rucăr',
-    step: 'Préselés',
-    temperature: 28.0,
-    ph: 5.40,
-    operator: 'Kovács János',
-    status: 'OK'
-  }
-];
 
 const CCP_STEPS = [
   'CCP1 - Pasztőrözés',
@@ -119,8 +62,22 @@ const CCP_STEPS = [
   'Csomagolás'
 ];
 
+const dtoToEntry = (dto: ProductionLogDto): HaccpLogEntry => ({
+  id: dto.id,
+  timestamp: dto.timestamp,
+  batchId: dto.batchNumber,
+  productName: dto.productName,
+  step: dto.step,
+  temperature: dto.temperature ?? 0,
+  ph: dto.ph ?? 0,
+  operator: dto.operator,
+  status: dto.status as HaccpStatus,
+  notes: dto.notes ?? undefined,
+});
+
 const HaccpLogs: React.FC = () => {
-  const [logs, setLogs] = useState<HaccpLogEntry[]>(INITIAL_LOGS);
+  const [logs, setLogs] = useState<HaccpLogEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFilter, setDateFilter] = useState(new Date().toISOString().slice(0, 10));
   
@@ -134,6 +91,20 @@ const HaccpLogs: React.FC = () => {
     step: CCP_STEPS[0]
   });
 
+  const loadLogs = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const data = await fetchProductionLogs({ dateFrom: dateFilter, dateTo: dateFilter });
+      setLogs(data.map(dtoToEntry));
+    } catch {
+      setLogs([]);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [dateFilter]);
+
+  useEffect(() => { loadLogs(); }, [loadLogs]);
+
   // --- Calculations ---
 
   const filteredLogs = useMemo(() => {
@@ -141,17 +112,15 @@ const HaccpLogs: React.FC = () => {
       const matchesSearch = log.batchId.toLowerCase().includes(searchTerm.toLowerCase()) || 
                             log.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
                             log.operator.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesDate = log.timestamp.startsWith(dateFilter);
-      return matchesSearch && matchesDate;
+      return matchesSearch;
     }).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  }, [logs, searchTerm, dateFilter]);
+  }, [logs, searchTerm]);
 
   const stats = useMemo(() => {
     const total = filteredLogs.length;
     const critical = filteredLogs.filter(l => l.status === 'CRITICAL').length;
     const warning = filteredLogs.filter(l => l.status === 'WARNING').length;
     
-    // Avg Temp for Chart (Reverse sort for time axis)
     const chartData = [...filteredLogs]
       .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
       .map(l => ({
@@ -166,33 +135,28 @@ const HaccpLogs: React.FC = () => {
 
   // --- Handlers ---
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newEntry.batchId || !newEntry.productName) return;
 
-    // Auto status logic
-    let status: HaccpStatus = 'OK';
-    if (newEntry.step?.includes('Pasztőrözés')) {
-       if ((newEntry.temperature || 0) < 71.5) status = 'CRITICAL';
-       else if ((newEntry.temperature || 0) < 72.0) status = 'WARNING';
-    }
-
-    const entry: HaccpLogEntry = {
-      id: `log-${Date.now()}`,
-      timestamp: newEntry.timestamp || new Date().toISOString(),
-      batchId: newEntry.batchId,
-      productName: newEntry.productName,
+    const payload: ProductionLogInput = {
+      batchNumber: newEntry.batchId!,
+      productName: newEntry.productName!,
       step: newEntry.step || 'Egyéb',
-      temperature: newEntry.temperature || 0,
-      ph: newEntry.ph || 0,
+      temperature: newEntry.temperature ?? 0,
+      ph: newEntry.ph ?? 0,
       operator: newEntry.operator || 'Aktív Felhasználó',
-      status: status,
-      notes: newEntry.notes
+      notes: newEntry.notes,
+      timestamp: newEntry.timestamp || new Date().toISOString(),
     };
 
-    setLogs([entry, ...logs]);
+    try {
+      await createProductionLog(payload);
+      await loadLogs();
+    } catch {
+      alert('Mentés sikertelen.');
+    }
     setIsModalOpen(false);
-    // Reset (keep timestamp current)
     setNewEntry({
       timestamp: new Date().toISOString().slice(0, 16),
       temperature: 0,
@@ -282,7 +246,6 @@ const HaccpLogs: React.FC = () => {
                       contentStyle={{borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'}}
                       labelStyle={{fontWeight: 'bold', color: '#475569'}}
                     />
-                    {/* CCP Limit Line Example (e.g. Pasteurization min) */}
                     <ReferenceLine y={72} stroke="#ef4444" strokeDasharray="3 3" label={{ position: 'right', value: 'Min 72°C', fill: '#ef4444', fontSize: 10 }} />
                     <Line type="monotone" dataKey="temp" stroke="#3b82f6" strokeWidth={3} dot={{r: 4, strokeWidth: 2, fill: '#fff'}} activeDot={{r: 6}} />
                  </LineChart>
@@ -349,7 +312,9 @@ const HaccpLogs: React.FC = () => {
                   </tr>
                </thead>
                <tbody className="divide-y divide-slate-100">
-                  {filteredLogs.length > 0 ? (
+                  {isLoading ? (
+                    <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-400">Betöltés...</td></tr>
+                  ) : filteredLogs.length > 0 ? (
                     filteredLogs.map(log => (
                       <tr key={log.id} className="hover:bg-slate-50 transition">
                          <td className="px-6 py-4">

@@ -1,21 +1,23 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using BomilactERP.api.DTOs;
 using BomilactERP.api.Models;
-using BomilactERP.api.Data;
 
 namespace BomilactERP.api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Roles = "Admin,Manager")]
 public class UsersController : ControllerBase
 {
-    private readonly BomilactDbContext _context;
+    private readonly UserManager<ApplicationUser> _userManager;
     private readonly ILogger<UsersController> _logger;
 
-    public UsersController(BomilactDbContext context, ILogger<UsersController> logger)
+    public UsersController(UserManager<ApplicationUser> userManager, ILogger<UsersController> logger)
     {
-        _context = context;
+        _userManager = userManager;
         _logger = logger;
     }
 
@@ -24,163 +26,155 @@ public class UsersController : ControllerBase
     {
         try
         {
-            _logger.LogInformation("Fetching all users");
-            var users = await _context.Users.ToListAsync();
+            var users = await _userManager.Users
+                .Where(u => !u.IsDeleted)
+                .OrderBy(u => u.LastName)
+                .ThenBy(u => u.FirstName)
+                .ToListAsync();
 
-            var dtos = users.Select(u => new UserDto
+            var result = new List<UserDto>();
+            foreach (var user in users)
             {
-                Id = u.Id,
-                Username = u.Username,
-                Email = u.Email,
-                FirstName = u.FirstName,
-                LastName = u.LastName,
-                Role = (int)u.Role,
-                IsActive = u.IsActive
-            });
+                var roles = await _userManager.GetRolesAsync(user);
+                result.Add(MapToDto(user, roles));
+            }
 
-            _logger.LogInformation("Successfully fetched {Count} users", dtos.Count());
-            return Ok(dtos);
+            return Ok(result);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An error occurred while fetching users");
-            return StatusCode(500, new { message = "An error occurred while processing your request" });
+            _logger.LogError(ex, "Error fetching users");
+            return StatusCode(500, new { message = "Belső hiba történt." });
         }
     }
 
     [HttpGet("{id}")]
-    public async Task<ActionResult<UserDto>> GetById(int id)
+    public async Task<ActionResult<UserDto>> GetById(string id)
     {
         try
         {
-            _logger.LogInformation("Fetching user with ID {UserId}", id);
-            var user = await _context.Users.FindAsync(id);
-            if (user == null)
-            {
-                _logger.LogWarning("User with ID {UserId} not found", id);
-                return NotFound();
-            }
-
-            var dto = new UserDto
-            {
-                Id = user.Id,
-                Username = user.Username,
-                Email = user.Email,
-                FirstName = user.FirstName,
-                LastName = user.LastName,
-                Role = (int)user.Role,
-                IsActive = user.IsActive
-            };
-
-            _logger.LogInformation("Successfully fetched user with ID {UserId}", id);
-            return Ok(dto);
+            var user = await _userManager.FindByIdAsync(id);
+            if (user == null || user.IsDeleted) return NotFound();
+            var roles = await _userManager.GetRolesAsync(user);
+            return Ok(MapToDto(user, roles));
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An error occurred while fetching user with ID {UserId}", id);
-            return StatusCode(500, new { message = "An error occurred while processing your request" });
+            _logger.LogError(ex, "Error fetching user {UserId}", id);
+            return StatusCode(500, new { message = "Belső hiba történt." });
         }
     }
 
     [HttpPost]
-    public async Task<ActionResult<UserDto>> Create(CreateUserDto dto)
+    [Authorize(Roles = "Admin")]
+    public async Task<ActionResult<UserDto>> Create([FromBody] CreateUserDto dto)
     {
         try
         {
-            _logger.LogInformation("Creating new user: {Username}", dto.Username);
-            // Hash password (you should use a proper hashing library like BCrypt)
-            var passwordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password);
-
-            var user = new User
+            var user = new ApplicationUser
             {
-                Username = dto.Username,
+                UserName = dto.UserName,
                 Email = dto.Email,
-                PasswordHash = passwordHash,
                 FirstName = dto.FirstName,
                 LastName = dto.LastName,
-                Role = (UserRole)dto.Role
+                Department = dto.Department,
+                IsActive = true,
+                EmailConfirmed = true
             };
 
-            _context.Users.Add(user);
-            await _context.SaveChangesAsync();
+            var result = await _userManager.CreateAsync(user, dto.Password);
+            if (!result.Succeeded)
+                return BadRequest(new { message = string.Join(", ", result.Errors.Select(e => e.Description)) });
 
-            var resultDto = new UserDto
+            foreach (var role in dto.Roles)
             {
-                Id = user.Id,
-                Username = user.Username,
-                Email = user.Email,
-                FirstName = user.FirstName,
-                LastName = user.LastName,
-                Role = (int)user.Role,
-                IsActive = user.IsActive
-            };
+                await _userManager.AddToRoleAsync(user, role);
+            }
 
-            _logger.LogInformation("Successfully created user with ID {UserId}", user.Id);
-            return CreatedAtAction(nameof(GetById), new { id = user.Id }, resultDto);
+            var roles = await _userManager.GetRolesAsync(user);
+            _logger.LogInformation("User {Email} created", user.Email);
+            return CreatedAtAction(nameof(GetById), new { id = user.Id }, MapToDto(user, roles));
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An error occurred while creating user");
-            return StatusCode(500, new { message = "An error occurred while processing your request" });
+            _logger.LogError(ex, "Error creating user");
+            return StatusCode(500, new { message = "Belső hiba történt." });
         }
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> Update(int id, UpdateUserDto dto)
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> Update(string id, [FromBody] UpdateUserDto dto)
     {
         try
         {
-            _logger.LogInformation("Updating user with ID {UserId}", id);
-            var user = await _context.Users.FindAsync(id);
-            if (user == null)
-            {
-                _logger.LogWarning("User with ID {UserId} not found for update", id);
-                return NotFound();
-            }
+            var user = await _userManager.FindByIdAsync(id);
+            if (user == null || user.IsDeleted) return NotFound();
 
             user.Email = dto.Email;
+            user.UserName = dto.Email;
             user.FirstName = dto.FirstName;
             user.LastName = dto.LastName;
-            user.Role = (UserRole)dto.Role;
+            user.Department = dto.Department;
             user.IsActive = dto.IsActive;
             user.UpdatedAt = DateTime.UtcNow;
 
-            _context.Users.Update(user);
-            await _context.SaveChangesAsync();
+            var result = await _userManager.UpdateAsync(user);
+            if (!result.Succeeded)
+                return BadRequest(new { message = string.Join(", ", result.Errors.Select(e => e.Description)) });
 
-            _logger.LogInformation("Successfully updated user with ID {UserId}", id);
+            // Update roles
+            var currentRoles = await _userManager.GetRolesAsync(user);
+            await _userManager.RemoveFromRolesAsync(user, currentRoles);
+            foreach (var role in dto.Roles)
+            {
+                await _userManager.AddToRoleAsync(user, role);
+            }
+
             return NoContent();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An error occurred while updating user with ID {UserId}", id);
-            return StatusCode(500, new { message = "An error occurred while processing your request" });
+            _logger.LogError(ex, "Error updating user {UserId}", id);
+            return StatusCode(500, new { message = "Belső hiba történt." });
         }
     }
 
     [HttpDelete("{id}")]
-    public async Task<IActionResult> Delete(int id)
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> Delete(string id)
     {
         try
         {
-            _logger.LogInformation("Deleting user with ID {UserId}", id);
-            var user = await _context.Users.FindAsync(id);
-            if (user == null)
-            {
-                _logger.LogWarning("User with ID {UserId} not found for deletion", id);
-                return NotFound();
-            }
+            var user = await _userManager.FindByIdAsync(id);
+            if (user == null || user.IsDeleted) return NotFound();
 
-            _context.Users.Remove(user);
-            await _context.SaveChangesAsync();
+            user.IsDeleted = true;
+            user.IsActive = false;
+            user.UpdatedAt = DateTime.UtcNow;
+            await _userManager.UpdateAsync(user);
 
-            _logger.LogInformation("Successfully deleted user with ID {UserId}", id);
+            _logger.LogInformation("User {UserId} soft deleted", id);
             return NoContent();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "An error occurred while deleting user with ID {UserId}", id);
-            return StatusCode(500, new { message = "An error occurred while processing your request" });
+            _logger.LogError(ex, "Error deleting user {UserId}", id);
+            return StatusCode(500, new { message = "Belső hiba történt." });
         }
     }
+
+    private static UserDto MapToDto(ApplicationUser user, IList<string> roles) => new()
+    {
+        Id = user.Id,
+        UserName = user.UserName ?? string.Empty,
+        Email = user.Email ?? string.Empty,
+        FirstName = user.FirstName,
+        LastName = user.LastName,
+        Department = user.Department,
+        IsActive = user.IsActive,
+        CreatedAt = user.CreatedAt,
+        LastLoginAt = user.LastLoginAt,
+        Roles = roles.ToList()
+    };
 }

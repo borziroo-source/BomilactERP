@@ -22,6 +22,7 @@ import {
   Calendar
 } from 'lucide-react';
 import { Shipment, ShipmentStatus, DeliveryNote, Supplier } from '../types';
+import { usePermission } from '../hooks/usePermission';
 
 // Kibővített Beszállítói lista a kereséshez
 const ALL_SUPPLIERS: Partial<Supplier>[] = [
@@ -92,6 +93,7 @@ const MOCK_SHIPMENTS: Shipment[] = [
 
 const ShipmentArrival: React.FC = () => {
   const [shipments, setShipments] = useState<Shipment[]>(MOCK_SHIPMENTS);
+  const { canCreate, canUpdate } = usePermission('logistics', 'log_shipments');
   const [selectedDate, setSelectedDate] = useState<string>('2026-01-21'); // Alapértelmezett a screenshot szerinti dátum
   const [selectedShipmentId, setSelectedShipmentId] = useState<string | null>(null);
   const [editingAvizo, setEditingAvizo] = useState<DeliveryNote | null>(null);
@@ -245,12 +247,13 @@ const ShipmentArrival: React.FC = () => {
                  {activeShipment.status !== 'COMPLETED' && (
                     <button 
                       onClick={() => setIsAddSupplierModalOpen(true)}
-                      className="flex-1 md:flex-none bg-white border border-blue-200 text-blue-600 px-4 py-2 rounded-lg font-bold text-sm hover:bg-blue-50 transition flex items-center justify-center shadow-sm"
+                      disabled={!canCreate}
+                      className="flex-1 md:flex-none bg-white border border-blue-200 text-blue-600 px-4 py-2 rounded-lg font-bold text-sm hover:bg-blue-50 transition flex items-center justify-center shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                         <UserPlus size={18} className="mr-2" /> Beszállító hozzáadása
                     </button>
                  )}
-                 <button className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-lg shadow-blue-600/20 hover:bg-blue-700 transition">
+                 <button disabled={!canUpdate} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-lg shadow-blue-600/20 hover:bg-blue-700 transition disabled:opacity-40 disabled:cursor-not-allowed">
                     Szállítmány Lezárása
                  </button>
               </div>
@@ -306,7 +309,8 @@ const ShipmentArrival: React.FC = () => {
                       <div className="flex items-center">
                          <button 
                            onClick={() => setEditingAvizo(av)}
-                           className="w-full md:w-auto px-4 py-2 bg-slate-100 hover:bg-blue-600 hover:text-white rounded-lg text-sm font-bold text-slate-600 transition flex items-center justify-center border border-slate-200"
+                           disabled={!canUpdate}
+                           className="w-full md:w-auto px-4 py-2 bg-slate-100 hover:bg-blue-600 hover:text-white rounded-lg text-sm font-bold text-slate-600 transition flex items-center justify-center border border-slate-200 disabled:opacity-40 disabled:cursor-not-allowed"
                          >
                             Adatok rögzítése <ChevronRight size={16} className="ml-1" />
                          </button>
@@ -387,7 +391,7 @@ const ShipmentArrival: React.FC = () => {
                  {/* ... (Az űrlap többi része változatlan) */}
                  <div className="pt-2 flex gap-3 sticky bottom-0 bg-white -mx-6 -mb-6 p-6 border-t border-slate-100">
                     <button type="button" onClick={() => setEditingAvizo(null)} className="flex-1 py-3 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition">Mégse</button>
-                    <button type="submit" className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-600/30 hover:bg-blue-700 transition flex items-center justify-center">
+                    <button type="submit" disabled={!canUpdate} className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-600/30 hover:bg-blue-700 transition flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed">
                        <Save size={18} className="mr-2" /> Mentés & Jóváhagyás
                     </button>
                  </div>
